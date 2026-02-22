@@ -1,0 +1,22 @@
+# CLL Joias - TODO
+
+- [x] Migrar schema do banco de dados (categorias, produtos, pedidos, itens do carrinho)
+- [x] Migrar rotas do backend (tRPC routers para produtos, categorias, carrinho, pedidos)
+- [x] Migrar funções de banco de dados (db.ts)
+- [x] Migrar tipos compartilhados (shared/types.ts)
+- [x] Migrar páginas do frontend (Home, Catalog, Category, Product, Cart, Checkout, Admin)
+- [x] Migrar componentes compartilhados (Navbar, Footer, etc)
+- [x] Migrar estilos CSS e tema visual
+- [x] Criar script de importação de todos os 172 produtos do catálogo
+- [x] Upload de imagens dos produtos para S3
+- [x] Gerar nomes descritivos para imagens sem nome
+- [x] Vincular produtos às categorias corretas
+- [x] Corrigir bug: Semi-Joias sendo vinculada como "banhada ouro 18k" 
+- [x] Corrigir bug: Modal de edição no /admin aparece no topo da página
+- [x] Configurar secrets do Mercado Pago (Public Key, Access Token, Client ID, Client Secret, Webhook)
+- [x] Criar endpoint /api/process-payment para Mercado Pago
+- [x] Criar endpoint /api/mp-webhook para webhooks do Mercado Pago
+- [x] Corrigir referência VITE_MP_PUBLIC_KEY no Checkout e OrderStatus
+- [x] Implementar tela de sucesso pós-pagamento com redirecionamento para WhatsApp
+- [x] Escrever testes vitest (15 testes passando)
+- [ ] Publicar site permanentemente
