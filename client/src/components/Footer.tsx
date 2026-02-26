@@ -11,7 +11,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="space-y-4">
-            <img src={LOGO_URL} alt="CLL JOIAS" className="h-16 w-16 rounded-full object-cover brightness-0 invert opacity-80" />
+            <img src={LOGO_URL} alt="CLL JOIAS" className="h-16 w-16 rounded-full object-cover" />
             <p className="text-sm leading-relaxed text-white/60">
               Semi joias banhadas em Ouro e Prata, Pratas 925 com garantia e acessórios personalizados. Enviamos para toda a Bahia.
             </p>
