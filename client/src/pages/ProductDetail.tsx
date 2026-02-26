@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, ShoppingBag, MessageCircle, Minus, Plus, Truck, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ShoppingBag, MessageCircle, Minus, Plus, Truck, Shield, ChevronLeft, ChevronRight, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { WHATSAPP_NUMBER, FREE_SHIPPING_THRESHOLD } from "@shared/types";
@@ -161,6 +161,18 @@ export default function ProductDetail() {
               </div>
             )}
 
+            {/* Aviso de prazo de produção */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-start gap-2">
+              <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                {(product.categoryLine === "Personalizados" || product.categoryLine === "Personalizados Pet") ? (
+                  <p><strong>Prazo de produção:</strong> Este produto é personalizado e leva até <strong>7 dias úteis</strong> para confecção.</p>
+                ) : (
+                  <p><strong>Prazo de envio:</strong> Produto pronto! Enviado em até <strong>1 dia útil</strong> após confirmação do pagamento.</p>
+                )}
+              </div>
+            </div>
+
             {/* Quantity */}
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium">Quantidade:</span>
@@ -223,6 +235,24 @@ export default function ProductDetail() {
                       <span className="font-semibold">{opt.price === 0 ? "Grátis" : `R$${opt.price.toFixed(2)}`}</span>
                     </div>
                   ))}
+                </div>
+              )}
+              {shippingQuote.data?.unavailable && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-800">{shippingQuote.data.unavailableMessage}</p>
+                  </div>
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de saber se vocês entregam no meu CEP: ' + cep)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <button className="w-full bg-green-500 hover:bg-green-600 text-white text-xs font-medium py-2 px-3 rounded-md flex items-center justify-center gap-1.5 transition-colors">
+                      <MessageCircle className="w-3.5 h-3.5" /> Tirar dúvida no WhatsApp
+                    </button>
+                  </a>
                 </div>
               )}
               {shippingQuote.data?.error && (

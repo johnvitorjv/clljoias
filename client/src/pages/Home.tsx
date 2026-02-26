@@ -41,7 +41,7 @@ export default function Home() {
                 Elegância que <span className="text-[oklch(0.65_0.12_350)]">traduz</span> quem você é
               </h1>
               <p className="mt-5 text-base md:text-lg text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                Semi joias banhadas em Ouro e Prata, Pratas 925 com garantia e acessórios personalizados. Enviamos para todo o Brasil.
+                Semi joias banhadas em Ouro e Prata, Pratas 925 com garantia e acessórios personalizados. Enviamos para toda a Bahia.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
                 <Link href="/catalogo">
@@ -69,7 +69,7 @@ export default function Home() {
             {[
               { icon: Gem, label: "Pratas 925 Legítimas", sub: "Com garantia" },
               { icon: Shield, label: "Compra Segura", sub: "Mercado Pago" },
-              { icon: Truck, label: "Envio Nacional", sub: "PAC e SEDEX" },
+              { icon: Truck, label: "Envio para Bahia", sub: "Entrega rápida" },
               { icon: Star, label: "2.000+ Clientes", sub: "Satisfeitos" },
             ].map(({ icon: Icon, label, sub }) => (
               <div key={label} className="flex flex-col items-center gap-1.5">
@@ -152,7 +152,7 @@ export default function Home() {
                 Somos uma loja de semi joias e acessórios localizada em Salvador, Bahia. Trabalhamos com peças banhadas em ouro e prata, pratas 925 com garantia, e acessórios personalizados.
               </p>
               <p className="text-muted-foreground leading-relaxed mb-6">
-                Cada peça é selecionada com carinho para garantir qualidade e elegância. Enviamos para todo o Brasil com segurança e rapidez.
+                Cada peça é selecionada com carinho para garantir qualidade e elegância. Enviamos para toda a Bahia com segurança e rapidez.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <a href="https://instagram.com/cll.joias" target="_blank" rel="noopener">

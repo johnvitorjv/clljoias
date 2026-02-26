@@ -148,40 +148,44 @@ export const appRouter = router({
       try {
         const viacepRes = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
         const viacepData = await viacepRes.json() as any;
-        if (viacepData.erro) return { error: "CEP não encontrado", options: [] };
+        if (viacepData.erro) return { error: "CEP não encontrado", options: [], unavailable: false };
         const city = viacepData.localidade || "";
+        const state = viacepData.uf || "";
+
+        // Só entregamos na Bahia
+        if (state !== "BA") {
+          return {
+            city, state, isLocal: false, options: [],
+            unavailable: true,
+            unavailableMessage: `Infelizmente ainda n\u00e3o entregamos em ${city}/${state}. No momento, realizamos entregas apenas na Bahia. Entre em contato pelo WhatsApp para tirar d\u00favidas!`,
+          };
+        }
+
         const isLocal = LOCAL_CITIES.some(c => city.toLowerCase().includes(c.toLowerCase()));
         if (isLocal) {
           return {
-            city, state: viacepData.uf, isLocal: true,
+            city, state, isLocal: true, unavailable: false,
             options: [
               { method: "retirada", label: "Retirada Presencial", price: 0, description: "A combinar via WhatsApp" },
               { method: "entrega_local", label: "Uber Flash / Entrega Local", price: 0, description: "Taxa a combinar via WhatsApp" },
             ],
           };
         }
-        // Remote shipping - calculate PAC/SEDEX
+        // Entrega dentro da Bahia (fora de Salvador)
         const weight = Math.max(input.weightGrams / 1000, 0.3);
-        // Use distance-based estimation (more realistic than random)
-        const stateMultipliers: Record<string, number> = {
-          BA: 1.0, SE: 1.1, AL: 1.2, PE: 1.3, PB: 1.3, RN: 1.4, CE: 1.5, PI: 1.5, MA: 1.6,
-          MG: 1.4, ES: 1.4, RJ: 1.5, SP: 1.5, GO: 1.5, DF: 1.5, MT: 1.7, MS: 1.6,
-          PR: 1.7, SC: 1.8, RS: 1.9, TO: 1.6, PA: 1.8, AM: 2.0, RO: 2.0, AC: 2.1, RR: 2.1, AP: 2.0,
-        };
-        const mult = stateMultipliers[viacepData.uf] || 1.5;
-        const basePac = (15.90 + weight * 4.5) * mult;
-        const baseSedex = (28.90 + weight * 7.5) * mult;
-        const pacDays = Math.ceil(6 + mult * 3);
-        const sedexDays = Math.ceil(2 + mult * 2);
+        const basePac = 15.90 + weight * 4.5;
+        const baseSedex = 28.90 + weight * 7.5;
+        const pacDays = 8;
+        const sedexDays = 4;
         const pacPrice = Math.round(basePac * 100) / 100;
         const sedexPrice = Math.round(baseSedex * 100) / 100;
         
         const options: any[] = [
-          { method: "pac", label: "PAC", price: pacPrice, days: pacDays, description: `Entrega em ${pacDays} dias úteis` },
-          { method: "sedex", label: "SEDEX", price: sedexPrice, days: sedexDays, description: `Entrega em ${sedexDays} dias úteis` },
+          { method: "pac", label: "PAC", price: pacPrice, days: pacDays, description: `Entrega em ${pacDays} dias \u00fateis` },
+          { method: "sedex", label: "SEDEX", price: sedexPrice, days: sedexDays, description: `Entrega em ${sedexDays} dias \u00fateis` },
         ];
         
-        return { city, state: viacepData.uf, isLocal: false, options };
+        return { city, state, isLocal: false, unavailable: false, options };
       } catch (err) {
         return { error: "Não foi possível calcular o frete. Tente novamente ou fale conosco no WhatsApp.", options: [] };
       }

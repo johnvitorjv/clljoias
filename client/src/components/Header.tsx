@@ -36,20 +36,20 @@ export default function Header() {
     <>
       {/* Top bar */}
       <div className="bg-[oklch(0.65_0.12_350)] text-white text-xs py-1.5 text-center tracking-widest uppercase font-light">
-        Frete grátis acima de R$199,90 | Enviamos para todo o Brasil
+        Frete grátis acima de R$199,90 | Enviamos para toda a Bahia
       </div>
 
       {/* Main header */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border/50 shadow-sm">
-        <div className="container flex items-center justify-between h-16 lg:h-20">
+        <div className="container flex items-center justify-between h-16 lg:h-20 relative">
           {/* Mobile menu */}
           <button onClick={() => setMobileMenuOpen(true)} className="lg:hidden p-2 -ml-2">
             <Menu className="w-5 h-5" />
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <img src={LOGO_URL} alt="CLL JOIAS" className="h-10 lg:h-14 w-auto" />
+          <Link href="/" className="absolute left-1/2 -translate-x-1/2 flex items-center">
+            <img src={LOGO_URL} alt="CLL JOIAS" className="h-10 lg:h-14 w-auto rounded-full object-cover" />
           </Link>
 
           {/* Desktop nav */}
@@ -137,7 +137,7 @@ export default function Header() {
               className="fixed left-0 top-0 bottom-0 w-80 bg-white z-50 overflow-y-auto"
             >
               <div className="p-4 flex items-center justify-between border-b">
-                <img src={LOGO_URL} alt="CLL JOIAS" className="h-10" />
+                <img src={LOGO_URL} alt="CLL JOIAS" className="h-10 rounded-full object-cover" />
                 <button onClick={() => setMobileMenuOpen(false)}>
                   <X className="w-5 h-5" />
                 </button>

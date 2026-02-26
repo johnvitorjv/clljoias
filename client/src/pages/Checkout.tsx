@@ -315,6 +315,20 @@ export default function Checkout() {
                     ))}
                   </div>
                 )}
+                {shippingQuote.data?.unavailable && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                    <p className="text-sm text-amber-800">{shippingQuote.data.unavailableMessage}</p>
+                    <a
+                      href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Ol\u00e1! Gostaria de saber se vocês entregam no meu CEP: ' + cep)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button className="bg-green-500 hover:bg-green-600 text-white gap-2 w-full">
+                        <MessageCircle className="w-4 h-4" /> Tirar dúvida no WhatsApp
+                      </Button>
+                    </a>
+                  </div>
+                )}
                 {shippingQuote.data?.error && <p className="text-sm text-destructive">{shippingQuote.data.error}</p>}
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => setStep("info")}>Voltar</Button>
@@ -339,6 +353,9 @@ export default function Checkout() {
                 <p className="text-sm text-muted-foreground">Pedido #{orderId} - Pague com Pix ou Cartão de Crédito</p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg">
                   <Shield className="w-4 h-4" /> Pagamento processado com segurança pelo Mercado Pago
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                  <strong>Prazos de produção:</strong> Produtos personalizados levam até <strong>7 dias úteis</strong> para confecção. Demais produtos (pulseiras, anéis, brincos, etc.) são enviados em até <strong>1 dia útil</strong>.
                 </div>
                 <div id="mp-bricks-container" ref={bricksContainerRef} className="min-h-[300px]">
                   {!mpLoaded && <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando pagamento...</div>}

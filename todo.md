@@ -19,4 +19,9 @@
 - [x] Corrigir referência VITE_MP_PUBLIC_KEY no Checkout e OrderStatus
 - [x] Implementar tela de sucesso pós-pagamento com redirecionamento para WhatsApp
 - [x] Escrever testes vitest (15 testes passando)
-- [ ] Publicar site permanentemente
+- [x] Publicar site permanentemente (checkpoint salvo, pronto para publicar via UI)
+- [x] Trocar "Brasil" por "Bahia" em todo o site (frete, rodapé, descrições)
+- [x] Validação de CEP: mostrar mensagem de indisponibilidade + botão WhatsApp
+- [x] Logo redonda e centralizada no cabeçalho (header)
+- [x] Logo redonda no rodapé (footer) onde está em branco
+- [x] Aviso de prazo: 7 dias para personalizados, 1 dia útil para demais produtos

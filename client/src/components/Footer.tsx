@@ -11,9 +11,9 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="space-y-4">
-            <img src={LOGO_URL} alt="CLL JOIAS" className="h-16 w-auto brightness-0 invert opacity-80" />
+            <img src={LOGO_URL} alt="CLL JOIAS" className="h-16 w-16 rounded-full object-cover brightness-0 invert opacity-80" />
             <p className="text-sm leading-relaxed text-white/60">
-              Semi joias banhadas em Ouro e Prata, Pratas 925 com garantia e acessórios personalizados. Enviamos para todo o Brasil.
+              Semi joias banhadas em Ouro e Prata, Pratas 925 com garantia e acessórios personalizados. Enviamos para toda a Bahia.
             </p>
             <div className="flex gap-3">
               <a href="https://instagram.com/cll.joias" target="_blank" rel="noopener" className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
@@ -59,7 +59,7 @@ export default function Footer() {
                   Instagram: @cll.joias
                 </a>
               </li>
-              <li className="text-white/50">Salvador, BA - Brasil</li>
+              <li className="text-white/50">Salvador, BA</li>
             </ul>
           </div>
         </div>
