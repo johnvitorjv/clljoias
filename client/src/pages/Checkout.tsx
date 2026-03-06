@@ -118,7 +118,7 @@ export default function Checkout() {
   // Initialize MP Bricks when on payment step
   // Public key is hardcoded because it's a PUBLIC key (safe to expose in frontend)
   // and Cloudflare Pages doesn't reliably embed Vite env vars
-  const MP_PUBLIC_KEY = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || "APP_USR-5454822441939844-022112-a8f48bb38c1a224b86023b93e65f8f38-1457957090";
+  const MP_PUBLIC_KEY = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || "APP_USR-0bd12fc0-3765-48e4-977d-4d304c549869";
 
   useEffect(() => {
     if (step !== "payment" || !orderId) return;
