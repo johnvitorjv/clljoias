@@ -257,13 +257,14 @@ export const appRouter = router({
     login: publicProcedure.input(z.object({ password: z.string() })).mutation(async ({ input, ctx }) => {
       const adminPassword = process.env.ADMIN_PASSWORD;
       if (!adminPassword || input.password !== adminPassword) return { success: false, error: "Senha incorreta" };
-      // Set admin cookie
+      // Set admin cookie (cross-origin compatible)
       const cookieValue = Buffer.from(adminPassword).toString("base64");
+      const isSecure = ctx.req.protocol === "https" || ctx.req.headers["x-forwarded-proto"] === "https";
       ctx.res.cookie(ADMIN_COOKIE_NAME, cookieValue, {
         httpOnly: true,
         path: "/",
-        sameSite: "lax",
-        secure: ctx.req.protocol === "https" || ctx.req.headers["x-forwarded-proto"] === "https",
+        sameSite: isSecure ? "none" : "lax",
+        secure: isSecure,
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       });
       return { success: true };

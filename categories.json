@@ -1,0 +1,68 @@
+[
+  {
+    "id": 1,
+    "name": "Pratas 925",
+    "slug": "pratas-925",
+    "description": "Joias em prata 925 legítima",
+    "image": null,
+    "displayOrder": 1,
+    "active": 1,
+    "createdAt": "2026-02-22T22:06:09.000Z",
+    "updatedAt": "2026-02-22T22:06:09.000Z"
+  },
+  {
+    "id": 2,
+    "name": "Relógios",
+    "slug": "relogios",
+    "description": "Relógios de qualidade",
+    "image": null,
+    "displayOrder": 2,
+    "active": 1,
+    "createdAt": "2026-02-22T22:06:09.000Z",
+    "updatedAt": "2026-02-22T22:06:09.000Z"
+  },
+  {
+    "id": 3,
+    "name": "Semi-joias",
+    "slug": "semi-joias",
+    "description": "Semi-joias banhadas com garantia",
+    "image": null,
+    "displayOrder": 3,
+    "active": 1,
+    "createdAt": "2026-02-22T22:06:09.000Z",
+    "updatedAt": "2026-02-22T22:06:09.000Z"
+  },
+  {
+    "id": 4,
+    "name": "Tornozeleiras",
+    "slug": "tornozeleiras",
+    "description": "Tornozeleiras delicadas",
+    "image": null,
+    "displayOrder": 4,
+    "active": 1,
+    "createdAt": "2026-02-22T22:06:09.000Z",
+    "updatedAt": "2026-02-22T22:06:09.000Z"
+  },
+  {
+    "id": 5,
+    "name": "Personalizados",
+    "slug": "personalizados",
+    "description": "Acessórios personalizados sob encomenda",
+    "image": null,
+    "displayOrder": 5,
+    "active": 1,
+    "createdAt": "2026-02-22T22:06:09.000Z",
+    "updatedAt": "2026-02-22T22:06:09.000Z"
+  },
+  {
+    "id": 6,
+    "name": "Personalizados Pet",
+    "slug": "personalizados-pet",
+    "description": "Acessórios personalizados para pets",
+    "image": null,
+    "displayOrder": 6,
+    "active": 1,
+    "createdAt": "2026-02-22T22:06:09.000Z",
+    "updatedAt": "2026-02-22T22:06:09.000Z"
+  }
+]

@@ -8,6 +8,21 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
+// CORS middleware for cross-origin requests (Cloudflare Pages -> Render)
+function corsMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+}
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -31,6 +46,7 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
+  app.use(corsMiddleware);
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback

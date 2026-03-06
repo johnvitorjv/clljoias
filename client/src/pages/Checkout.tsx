@@ -155,12 +155,14 @@ export default function Checkout() {
         },
       },
       callbacks: {
-        onReady: () => {},
+        onReady: () => { },
         onSubmit: async ({ selectedPaymentMethod, formData }: any) => {
           try {
-            const response = await fetch("/api/process-payment", {
+            const apiBase = import.meta.env.VITE_API_URL || "";
+            const response = await fetch(`${apiBase}/api/process-payment`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({
                 orderId,
                 formData,
