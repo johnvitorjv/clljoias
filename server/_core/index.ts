@@ -39,7 +39,7 @@ async function startServer() {
   app.post("/api/process-payment", async (req, res) => {
     try {
       const { orderId, formData, description, external_reference } = req.body;
-      const accessToken = process.env.MP_ACCESS_TOKEN;
+      const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
       if (!accessToken) {
         return res.status(500).json({ error: "MP_ACCESS_TOKEN not configured" });
       }
@@ -99,7 +99,7 @@ async function startServer() {
     try {
       const { type, data } = req.body;
       if (type === "payment") {
-        const accessToken = process.env.MP_ACCESS_TOKEN;
+        const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
         if (!accessToken) return res.sendStatus(200);
 
         const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {

@@ -1,8 +1,8 @@
 import { eq, like, or, and, desc, asc } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { InsertUser, users, products, categories, orders, orderItems } from "../drizzle/schema";
 import type { InsertProduct, InsertCategory, InsertOrder, InsertOrderItem } from "../drizzle/schema";
-import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -10,7 +10,8 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const client = postgres(process.env.DATABASE_URL);
+      _db = drizzle(client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -56,9 +57,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
     }
 
     if (!values.lastSignedIn) {
@@ -69,7 +67,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -113,14 +112,14 @@ export async function getCategoryBySlug(slug: string) {
 export async function createCategory(data: InsertCategory) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(categories).values(data);
-  return result[0].insertId;
+  const result = await db.insert(categories).values(data).returning({ id: categories.id });
+  return result[0].id;
 }
 
 export async function updateCategory(id: number, data: Partial<InsertCategory>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(categories).set(data).where(eq(categories.id, id));
+  await db.update(categories).set({ ...data, updatedAt: new Date() }).where(eq(categories.id, id));
 }
 
 export async function deleteCategory(id: number) {
@@ -189,14 +188,14 @@ export async function searchProducts(query: string) {
 export async function createProduct(data: InsertProduct) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(products).values(data);
-  return result[0].insertId;
+  const result = await db.insert(products).values(data).returning({ id: products.id });
+  return result[0].id;
 }
 
 export async function updateProduct(id: number, data: Partial<InsertProduct>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(products).set(data).where(eq(products.id, id));
+  await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id));
 }
 
 export async function deleteProduct(id: number) {
@@ -209,8 +208,8 @@ export async function deleteProduct(id: number) {
 export async function createOrder(data: InsertOrder) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(orders).values(data);
-  return result[0].insertId;
+  const result = await db.insert(orders).values(data).returning({ id: orders.id });
+  return result[0].id;
 }
 
 export async function createOrderItems(items: InsertOrderItem[]) {
@@ -248,7 +247,7 @@ export async function getAllOrders() {
 export async function updateOrderStatus(id: number, status: string, mpPaymentId?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const updateData: Record<string, unknown> = { status };
+  const updateData: Record<string, unknown> = { status, updatedAt: new Date() };
   if (mpPaymentId) updateData.mpPaymentId = mpPaymentId;
   await db.update(orders).set(updateData).where(eq(orders.id, id));
 }

@@ -179,12 +179,12 @@ export const appRouter = router({
         const sedexDays = 4;
         const pacPrice = Math.round(basePac * 100) / 100;
         const sedexPrice = Math.round(baseSedex * 100) / 100;
-        
+
         const options: any[] = [
           { method: "pac", label: "PAC", price: pacPrice, days: pacDays, description: `Entrega em ${pacDays} dias \u00fateis` },
           { method: "sedex", label: "SEDEX", price: sedexPrice, days: sedexDays, description: `Entrega em ${sedexDays} dias \u00fateis` },
         ];
-        
+
         return { city, state, isLocal: false, unavailable: false, options };
       } catch (err) {
         return { error: "Não foi possível calcular o frete. Tente novamente ou fale conosco no WhatsApp.", options: [] };
