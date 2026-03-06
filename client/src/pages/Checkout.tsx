@@ -118,7 +118,7 @@ export default function Checkout() {
   // Initialize MP Bricks when on payment step
   useEffect(() => {
     if (step !== "payment" || !mpLoaded || !orderId || bricksInitialized.current) return;
-    const publicKey = import.meta.env.VITE_MP_PUBLIC_KEY;
+    const publicKey = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY;
     if (!publicKey || !window.MercadoPago) return;
     bricksInitialized.current = true;
 
