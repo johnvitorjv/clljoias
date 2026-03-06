@@ -42,28 +42,42 @@ export default function OrderStatus() {
   }, []);
 
   // Initialize Status Screen Brick when payment is pending and we have mpPaymentId
+  const MP_PUBLIC_KEY = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || "APP_USR-5454822441939844-022112-a8f48bb38c1a224b86023b93e65f8f38-1457957090";
+
   useEffect(() => {
-    if (!order || !mpLoaded || statusScreenInitialized.current) return;
+    if (!order || statusScreenInitialized.current) return;
     if (order.status !== "pending" || !order.mpPaymentId) return;
-    const publicKey = import.meta.env.VITE_MP_PUBLIC_KEY;
-    if (!publicKey || !window.MercadoPago) return;
 
-    statusScreenInitialized.current = true;
-    const mp = new window.MercadoPago(publicKey, { locale: "pt-BR" });
-    const bricksBuilder = mp.bricks();
+    const initStatusScreen = () => {
+      if (!window.MercadoPago) {
+        setTimeout(initStatusScreen, 1000);
+        return;
+      }
 
-    bricksBuilder.create("statusScreen", "mp-status-screen", {
-      initialization: {
-        paymentId: order.mpPaymentId,
-      },
-      callbacks: {
-        onReady: () => {},
-        onError: (error: any) => {
-          console.error("Status Screen error:", error);
-        },
-      },
-    });
-  }, [order, mpLoaded]);
+      statusScreenInitialized.current = true;
+      try {
+        const mp = new window.MercadoPago(MP_PUBLIC_KEY, { locale: "pt-BR" });
+        const bricksBuilder = mp.bricks();
+
+        bricksBuilder.create("statusScreen", "mp-status-screen", {
+          initialization: {
+            paymentId: order.mpPaymentId,
+          },
+          callbacks: {
+            onReady: () => { },
+            onError: (error: any) => {
+              console.error("Status Screen error:", error);
+            },
+          },
+        });
+      } catch (err) {
+        console.error("[MP] Falha ao criar Status Screen:", err);
+        statusScreenInitialized.current = false;
+      }
+    };
+
+    setTimeout(initStatusScreen, 500);
+  }, [order]);
 
   if (isLoading) {
     return (

@@ -116,84 +116,107 @@ export default function Checkout() {
   };
 
   // Initialize MP Bricks when on payment step
+  // Public key is hardcoded because it's a PUBLIC key (safe to expose in frontend)
+  // and Cloudflare Pages doesn't reliably embed Vite env vars
+  const MP_PUBLIC_KEY = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || "APP_USR-5454822441939844-022112-a8f48bb38c1a224b86023b93e65f8f38-1457957090";
+
   useEffect(() => {
-    if (step !== "payment" || !mpLoaded || !orderId || bricksInitialized.current) return;
-    const publicKey = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY;
-    if (!publicKey || !window.MercadoPago) return;
-    bricksInitialized.current = true;
+    if (step !== "payment" || !orderId) return;
+    if (bricksInitialized.current) return;
 
-    const mp = new window.MercadoPago(publicKey, { locale: "pt-BR" });
-    const bricksBuilder = mp.bricks();
+    const initBricks = () => {
+      if (!window.MercadoPago) {
+        console.warn("[MP] SDK ainda não carregou, tentando novamente em 1s...");
+        setTimeout(initBricks, 1000);
+        return;
+      }
 
-    bricksBuilder.create("payment", "mp-bricks-container", {
-      initialization: {
-        amount: total,
-        payer: {
-          email: customerEmail,
-          firstName: customerName.split(" ")[0],
-          lastName: customerName.split(" ").slice(1).join(" ") || "",
-          identification: { type: "CPF", number: customerCpf.replace(/\D/g, "") },
-        },
-      },
-      customization: {
-        visual: {
-          style: {
-            theme: "default",
-            customVariables: {
-              formBackgroundColor: "#ffffff",
-              baseColor: "#c06080",
+      console.log("[MP] Inicializando Brick de pagamento...");
+      bricksInitialized.current = true;
+
+      try {
+        const mp = new window.MercadoPago(MP_PUBLIC_KEY, { locale: "pt-BR" });
+        const bricksBuilder = mp.bricks();
+
+        bricksBuilder.create("payment", "mp-bricks-container", {
+          initialization: {
+            amount: total,
+            payer: {
+              email: customerEmail,
+              firstName: customerName.split(" ")[0],
+              lastName: customerName.split(" ").slice(1).join(" ") || "",
+              identification: { type: "CPF", number: customerCpf.replace(/\D/g, "") },
             },
           },
-        },
-        paymentMethods: {
-          creditCard: "all",
-          debitCard: "all",
-          ticket: "all",
-          bankTransfer: "all",
-          atm: "all",
-          maxInstallments: 6,
-        },
-      },
-      callbacks: {
-        onReady: () => { },
-        onSubmit: async ({ selectedPaymentMethod, formData }: any) => {
-          try {
-            const apiBase = import.meta.env.VITE_API_URL || "";
-            const response = await fetch(`${apiBase}/api/process-payment`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                orderId,
-                formData,
-                description: `CLL JOIAS - Pedido #${orderId}`,
-                external_reference: paymentId,
-              }),
-            });
-            const result = await response.json();
-            if (result.status === "approved") {
-              clearCart();
-              setStep("success");
-            } else if (result.status === "pending" || result.status === "in_process") {
-              clearCart();
-              toast.info("Pagamento pendente. Acompanhe o status.");
-              navigate(`/pedido/${orderId}`);
-            } else {
-              toast.error("Pagamento não aprovado. Tente novamente.");
-            }
-          } catch (err) {
-            clearCart();
-            toast.info("Pedido criado! Verifique o status.");
-            navigate(`/pedido/${orderId}`);
-          }
-        },
-        onError: (error: any) => {
-          console.error("MP Bricks error:", error);
-          toast.error("Erro no pagamento. Tente novamente.");
-        },
-      },
-    });
-  }, [step, mpLoaded, orderId]);
+          customization: {
+            visual: {
+              style: {
+                theme: "default",
+                customVariables: {
+                  formBackgroundColor: "#ffffff",
+                  baseColor: "#c06080",
+                },
+              },
+            },
+            paymentMethods: {
+              creditCard: "all",
+              debitCard: "all",
+              ticket: "all",
+              bankTransfer: "all",
+              atm: "all",
+              maxInstallments: 6,
+            },
+          },
+          callbacks: {
+            onReady: () => {
+              console.log("[MP] Brick de pagamento carregado com sucesso!");
+            },
+            onSubmit: async ({ selectedPaymentMethod, formData }: any) => {
+              try {
+                const apiBase = import.meta.env.VITE_API_URL || "https://clljoias.onrender.com";
+                const response = await fetch(`${apiBase}/api/process-payment`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({
+                    orderId,
+                    formData,
+                    description: `CLL JOIAS - Pedido #${orderId}`,
+                    external_reference: paymentId,
+                  }),
+                });
+                const result = await response.json();
+                if (result.status === "approved") {
+                  clearCart();
+                  setStep("success");
+                } else if (result.status === "pending" || result.status === "in_process") {
+                  clearCart();
+                  toast.info("Pagamento pendente. Acompanhe o status.");
+                  navigate(`/pedido/${orderId}`);
+                } else {
+                  toast.error("Pagamento não aprovado. Tente novamente.");
+                }
+              } catch (err) {
+                clearCart();
+                toast.info("Pedido criado! Verifique o status.");
+                navigate(`/pedido/${orderId}`);
+              }
+            },
+            onError: (error: any) => {
+              console.error("[MP] Bricks error:", error);
+              toast.error("Erro no pagamento. Tente novamente.");
+            },
+          },
+        });
+      } catch (err) {
+        console.error("[MP] Falha ao criar Brick:", err);
+        bricksInitialized.current = false;
+      }
+    };
+
+    // Small delay to ensure DOM is ready
+    setTimeout(initBricks, 500);
+  }, [step, orderId]);
 
   if (items.length === 0 && step !== "success") {
     return (
