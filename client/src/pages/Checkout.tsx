@@ -163,7 +163,6 @@ export default function Checkout() {
               debitCard: "all",
               ticket: "all",
               bankTransfer: "all",
-              atm: "all",
               maxInstallments: 6,
             },
           },
