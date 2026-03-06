@@ -25,6 +25,7 @@ export default function Catalog() {
         p.name.toLowerCase().includes(q) ||
         p.material.toLowerCase().includes(q) ||
         p.accessoryType.toLowerCase().includes(q) ||
+        p.categoryLine.toLowerCase().includes(q) ||
         (p.description && p.description.toLowerCase().includes(q))
       );
     }

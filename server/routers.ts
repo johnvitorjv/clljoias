@@ -16,13 +16,18 @@ const adminMiddleware = router({}).createCaller; // placeholder
 function isAdminRequest(ctx: any): boolean {
   // Check OAuth user role
   if (ctx.user?.role === "admin") return true;
-  // Check admin password cookie
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected) return false;
+  const expectedToken = Buffer.from(expected).toString("base64");
+  // Check Authorization header (works on Safari iOS where cookies are blocked by ITP)
+  const authHeader = ctx.req?.headers?.authorization || "";
+  if (authHeader.startsWith("Bearer ") && authHeader.slice(7) === expectedToken) return true;
+  // Check admin password cookie (fallback for browsers that support cross-site cookies)
   const cookies = ctx.req?.headers?.cookie || "";
   const adminCookie = cookies.split(";").map((c: string) => c.trim()).find((c: string) => c.startsWith(`${ADMIN_COOKIE_NAME}=`));
   if (adminCookie) {
     const value = adminCookie.split("=")[1];
-    const expected = process.env.ADMIN_PASSWORD;
-    if (expected && value === Buffer.from(expected).toString("base64")) return true;
+    if (value === expectedToken) return true;
   }
   return false;
 }
@@ -267,7 +272,7 @@ export const appRouter = router({
         secure: isSecure,
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       });
-      return { success: true };
+      return { success: true, token: cookieValue };
     }),
     checkAuth: publicProcedure.query(async ({ ctx }) => {
       return { isAdmin: isAdminRequest(ctx) };

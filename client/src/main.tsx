@@ -43,8 +43,15 @@ const trpcClient = trpc.createClient({
       url: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/trpc` : "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const headers = new Headers((init as any)?.headers);
+        // Send admin token as Authorization header (Safari iOS blocks cross-site cookies)
+        const adminToken = localStorage.getItem("admin_token");
+        if (adminToken) {
+          headers.set("Authorization", `Bearer ${adminToken}`);
+        }
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers,
           credentials: "include",
         });
       },

@@ -27,7 +27,13 @@ export default function Admin() {
         <form onSubmit={async (e) => {
           e.preventDefault();
           const result = await adminLogin.mutateAsync({ password });
-          if (result.success) { setAdminAuth(true); toast.success("Acesso autorizado"); }
+          if (result.success) {
+            // Save token to localStorage for Safari iOS (cookies blocked by ITP)
+            if ((result as any).token) {
+              localStorage.setItem("admin_token", (result as any).token);
+            }
+            setAdminAuth(true); toast.success("Acesso autorizado");
+          }
           else toast.error(result.error || "Senha incorreta");
         }} className="space-y-3">
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Senha" className="w-full px-3 py-2 border rounded-md text-sm" />
