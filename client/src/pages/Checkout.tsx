@@ -171,6 +171,7 @@ export default function Checkout() {
               console.log("[MP] Brick de pagamento carregado com sucesso!");
             },
             onSubmit: async ({ selectedPaymentMethod, formData }: any) => {
+              console.log("[MP] onSubmit chamado. Método:", selectedPaymentMethod, "Token presente:", !!formData?.token);
               try {
                 const apiBase = import.meta.env.VITE_API_URL || "https://clljoias.onrender.com";
                 const response = await fetch(`${apiBase}/api/process-payment`, {
@@ -184,21 +185,72 @@ export default function Checkout() {
                     external_reference: paymentId,
                   }),
                 });
+
                 const result = await response.json();
+                console.log("[MP] Resposta do backend:", JSON.stringify(result));
+
+                // Tratar erro de integração (backend retornou HTTP 4xx/5xx)
+                if (!response.ok || result.error) {
+                  console.error("[MP] Erro de integração:", result);
+                  const detail = result.status_detail || result.error || "";
+                  const statusMessages: Record<string, string> = {
+                    cc_rejected_bad_filled_card_number: "Número do cartão incorreto",
+                    cc_rejected_bad_filled_date: "Data de validade incorreta",
+                    cc_rejected_bad_filled_other: "Dados do cartão incorretos",
+                    cc_rejected_bad_filled_security_code: "Código de segurança incorreto",
+                    cc_rejected_high_risk: "Pagamento recusado por risco elevado",
+                    cc_rejected_insufficient_amount: "Saldo insuficiente",
+                    cc_rejected_invalid_installments: "Parcelas inválidas",
+                    cc_rejected_call_for_authorize: "Pagamento requer autorização do banco",
+                    cc_rejected_card_disabled: "Cartão desabilitado",
+                    cc_rejected_duplicated_payment: "Pagamento duplicado",
+                    cc_rejected_max_attempts: "Limite de tentativas excedido",
+                    cc_rejected_other_reason: "Pagamento recusado pelo banco",
+                    integration_error: "Erro de integração com o gateway",
+                  };
+                  const msg = statusMessages[detail] || result.message || "Erro ao processar pagamento. Verifique os dados e tente novamente.";
+                  toast.error(msg);
+                  return; // NÃO redirecionar — deixar o usuário tentar de novo no mesmo Brick
+                }
+
+                // Pagamento processado pelo MP (pode ser approved, pending ou rejected)
                 if (result.status === "approved") {
                   clearCart();
                   setStep("success");
                 } else if (result.status === "pending" || result.status === "in_process") {
                   clearCart();
-                  toast.info("Pagamento pendente. Acompanhe o status.");
+                  toast.info("Pagamento pendente. Acompanhe o status do pedido.");
                   navigate(`/pedido/${orderId}`);
+                } else if (result.status === "rejected") {
+                  // Pagamento rejeitado pelo banco — mostrar motivo real
+                  const detail = result.status_detail || "";
+                  const rejectMessages: Record<string, string> = {
+                    cc_rejected_bad_filled_card_number: "Número do cartão incorreto",
+                    cc_rejected_bad_filled_date: "Data de validade incorreta",
+                    cc_rejected_bad_filled_other: "Dados do cartão incorretos",
+                    cc_rejected_bad_filled_security_code: "Código de segurança incorreto",
+                    cc_rejected_high_risk: "Pagamento recusado por risco elevado. Tente outro cartão.",
+                    cc_rejected_insufficient_amount: "Saldo insuficiente no cartão",
+                    cc_rejected_invalid_installments: "Número de parcelas inválido",
+                    cc_rejected_call_for_authorize: "Seu banco precisa autorizar este pagamento. Ligue para o banco e tente novamente.",
+                    cc_rejected_card_disabled: "Cartão não autorizado para pagamentos online. Contate seu banco.",
+                    cc_rejected_duplicated_payment: "Pagamento duplicado. Verifique se já foi cobrado.",
+                    cc_rejected_max_attempts: "Limite de tentativas excedido. Tente outro cartão.",
+                  };
+                  const msg = rejectMessages[detail] || `Pagamento recusado (${detail || "motivo não informado"}). Tente outro cartão ou método de pagamento.`;
+                  toast.error(msg);
+                  // Redirecionar para a tela de status se houver mpPaymentId
+                  if (result.id) {
+                    navigate(`/pedido/${orderId}`);
+                  }
                 } else {
-                  toast.error("Pagamento não aprovado. Tente novamente.");
+                  toast.error("Resposta inesperada do gateway. Verifique o status do pedido.");
+                  navigate(`/pedido/${orderId}`);
                 }
               } catch (err) {
-                clearCart();
-                toast.info("Pedido criado! Verifique o status.");
-                navigate(`/pedido/${orderId}`);
+                console.error("[MP] Erro de rede/fetch:", err);
+                toast.error("Erro de conexão com o servidor. Verifique sua internet e tente novamente.");
+                // NÃO limpar carrinho, NÃO redirecionar — o pedido já foi criado, o Brick ainda está montado
               }
             },
             onError: (error: any) => {

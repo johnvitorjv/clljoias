@@ -57,23 +57,41 @@ async function startServer() {
       const { orderId, formData, description, external_reference } = req.body;
       const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
       if (!accessToken) {
-        return res.status(500).json({ error: "MP_ACCESS_TOKEN not configured" });
+        console.error("[MP] ERRO CRÍTICO: MERCADO_PAGO_ACCESS_TOKEN não configurado");
+        return res.status(500).json({ error: "payment_error", message: "Configuração de pagamento incompleta no servidor" });
+      }
+
+      // Validar dados obrigatórios do formData
+      if (!formData) {
+        console.error("[MP] ERRO: formData vazio na request");
+        return res.status(400).json({ error: "payment_error", message: "Dados do pagamento não recebidos" });
       }
 
       // Build payment body for Mercado Pago API
       const paymentBody: any = {
-        transaction_amount: formData.transaction_amount,
+        transaction_amount: Number(formData.transaction_amount),
         token: formData.token,
         description: description || `CLL JOIAS - Pedido #${orderId}`,
-        installments: formData.installments,
+        installments: Number(formData.installments) || 1,
         payment_method_id: formData.payment_method_id,
-        issuer_id: formData.issuer_id,
-        external_reference: external_reference,
+        issuer_id: formData.issuer_id ? String(formData.issuer_id) : undefined,
+        external_reference: external_reference ? String(external_reference) : undefined,
         payer: {
           email: formData.payer?.email,
           identification: formData.payer?.identification,
         },
       };
+
+      // LOG: payload enviado ao MP (sem dados sensíveis)
+      console.log(`[MP] Pedido #${orderId} — Enviando pagamento:`, JSON.stringify({
+        transaction_amount: paymentBody.transaction_amount,
+        payment_method_id: paymentBody.payment_method_id,
+        installments: paymentBody.installments,
+        issuer_id: paymentBody.issuer_id,
+        has_token: !!paymentBody.token,
+        payer_email: paymentBody.payer?.email,
+        payer_identification: paymentBody.payer?.identification,
+      }));
 
       const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
         method: "POST",
@@ -87,15 +105,40 @@ async function startServer() {
 
       const mpResult = await mpResponse.json() as any;
 
+      // LOG: resposta completa do MP
+      console.log(`[MP] Pedido #${orderId} — Resposta HTTP ${mpResponse.status}:`, JSON.stringify({
+        status: mpResult.status,
+        status_detail: mpResult.status_detail,
+        id: mpResult.id,
+        error: mpResult.error,
+        message: mpResult.message,
+        cause: mpResult.cause,
+      }));
+
+      // VERIFICAR: o MP retornou erro de API (não é um pagamento válido)
+      if (!mpResponse.ok || !mpResult.status) {
+        console.error(`[MP] ERRO DE INTEGRAÇÃO para pedido #${orderId}:`, JSON.stringify(mpResult));
+        // Atualizar ordem como rejeitada se houver ID
+        if (mpResult.id) {
+          const { updateOrderStatus } = await import("../db");
+          await updateOrderStatus(orderId, "rejected", String(mpResult.id));
+        }
+        return res.status(400).json({
+          error: "payment_error",
+          message: mpResult.message || "Erro ao processar pagamento no gateway",
+          cause: mpResult.cause,
+          status: mpResult.status || "error",
+          status_detail: mpResult.status_detail || mpResult.error || "integration_error",
+        });
+      }
+
       // Update order status based on payment result
+      const { updateOrderStatus } = await import("../db");
       if (mpResult.status === "approved") {
-        const { updateOrderStatus } = await import("../db");
         await updateOrderStatus(orderId, "approved", String(mpResult.id));
       } else if (mpResult.status === "pending" || mpResult.status === "in_process") {
-        const { updateOrderStatus } = await import("../db");
         await updateOrderStatus(orderId, "pending", String(mpResult.id));
       } else if (mpResult.status === "rejected") {
-        const { updateOrderStatus } = await import("../db");
         await updateOrderStatus(orderId, "rejected", String(mpResult.id));
       }
 
@@ -105,8 +148,8 @@ async function startServer() {
         id: mpResult.id,
       });
     } catch (error: any) {
-      console.error("Payment processing error:", error);
-      return res.status(500).json({ error: "Payment processing failed", details: error.message });
+      console.error("[MP] EXCEÇÃO no processamento:", error);
+      return res.status(500).json({ error: "payment_error", message: "Falha interna ao processar pagamento", details: error.message });
     }
   });
 

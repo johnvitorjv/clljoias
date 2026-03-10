@@ -46,7 +46,8 @@ export default function OrderStatus() {
 
   useEffect(() => {
     if (!order || statusScreenInitialized.current) return;
-    if (order.status !== "pending" || !order.mpPaymentId) return;
+    if (!order.mpPaymentId) return;
+    if (order.status !== "pending" && order.status !== "rejected") return;
 
     const initStatusScreen = () => {
       if (!window.MercadoPago) {
@@ -134,7 +135,7 @@ export default function OrderStatus() {
         </div>
 
         {/* Status Screen do MP (para pagamentos pendentes) */}
-        {order.status === "pending" && order.mpPaymentId && (
+        {(order.status === "pending" || order.status === "rejected") && order.mpPaymentId && (
           <div className="bg-white rounded-xl border p-6">
             <h3 className="font-serif font-bold mb-4">Acompanhar Pagamento</h3>
             <div id="mp-status-screen" ref={statusScreenRef} className="min-h-[200px]">
