@@ -21,6 +21,7 @@ import Footer from "./components/Footer";
 import CartDrawer from "./components/CartDrawer";
 import WhatsAppButton from "./components/WhatsAppButton";
 import SplashScreen from "./components/SplashScreen";
+import InstallPrompt from "./components/InstallPrompt";
 
 function Router() {
   return (
@@ -59,6 +60,7 @@ function App() {
             </div>
             <CartDrawer />
             <WhatsAppButton />
+            <InstallPrompt />
           </TooltipProvider>
         </CartProvider>
       </ThemeProvider>

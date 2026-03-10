@@ -1,0 +1,29 @@
+{
+    "name": "CLL Joias — Joias e Acessórios",
+    "short_name": "CLL Joias",
+    "description": "Joias e acessórios em aço inoxidável — Qualidade, estilo e sofisticação",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#faf5f0",
+    "theme_color": "#c06080",
+    "orientation": "portrait-primary",
+    "categories": [
+        "shopping",
+        "lifestyle"
+    ],
+    "icons": [
+        {
+            "src": "/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
