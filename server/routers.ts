@@ -75,7 +75,18 @@ export const appRouter = router({
   }),
 
   products: router({
-    list: publicProcedure.query(async () => db.getActiveProducts()),
+    list: publicProcedure.input(z.object({
+      limit: z.number().int().min(1).max(48).default(12),
+      offset: z.number().int().min(0).default(0),
+      search: z.string().optional(),
+      categoryLine: z.string().optional(),
+      material: z.string().optional(),
+      accessoryType: z.string().optional(),
+      sortBy: z.enum(["featured", "price_asc", "price_desc", "newest"]).default("featured"),
+    }).optional()).query(async ({ input }) => {
+      const payload = input ?? { limit: 12, offset: 0, sortBy: "featured" as const };
+      return db.getActiveProductsPaginated(payload);
+    }),
     listAll: publicProcedure.query(async ({ ctx }) => {
       if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
       return db.getAllProducts();

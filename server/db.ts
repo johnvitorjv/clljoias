@@ -1,4 +1,4 @@
-import { eq, like, or, and, desc, asc } from "drizzle-orm";
+import { eq, like, or, and, desc, asc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, products, categories, orders, orderItems } from "../drizzle/schema";
@@ -139,6 +139,52 @@ export async function getActiveProducts() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(products).where(eq(products.active, 1)).orderBy(asc(products.displayOrder), desc(products.createdAt));
+}
+
+type ProductListFilters = {
+  limit: number;
+  offset: number;
+  search?: string;
+  categoryLine?: string;
+  material?: string;
+  accessoryType?: string;
+  sortBy?: "featured" | "price_asc" | "price_desc" | "newest";
+};
+
+export async function getActiveProductsPaginated(filters: ProductListFilters) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  const conditions = [eq(products.active, 1)];
+  if (filters.search?.trim()) {
+    const term = `%${filters.search.trim()}%`;
+    conditions.push(or(
+      like(products.name, term),
+      like(products.material, term),
+      like(products.accessoryType, term),
+      like(products.categoryLine, term),
+      like(products.description, term),
+    )!);
+  }
+  if (filters.categoryLine) conditions.push(eq(products.categoryLine, filters.categoryLine));
+  if (filters.material) conditions.push(eq(products.material, filters.material));
+  if (filters.accessoryType) conditions.push(eq(products.accessoryType, filters.accessoryType));
+
+  const whereClause = and(...conditions);
+  const totalResult = await db.select({ count: sql<number>`count(*)::int` }).from(products).where(whereClause);
+
+  const orderBy = (() => {
+    switch (filters.sortBy) {
+      case "price_asc": return [asc(products.price), asc(products.displayOrder), desc(products.createdAt)] as const;
+      case "price_desc": return [desc(products.price), asc(products.displayOrder), desc(products.createdAt)] as const;
+      case "newest": return [desc(products.createdAt), asc(products.displayOrder)] as const;
+      case "featured":
+      default: return [desc(products.featured), asc(products.displayOrder), desc(products.createdAt)] as const;
+    }
+  })();
+
+  const items = await db.select().from(products).where(whereClause).orderBy(...orderBy).limit(filters.limit).offset(filters.offset);
+  return { items, total: totalResult[0]?.count ?? 0 };
 }
 
 export async function getFeaturedProducts() {
