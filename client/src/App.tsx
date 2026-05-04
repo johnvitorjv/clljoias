@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import { Suspense, lazy } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { CartProvider } from "./contexts/CartContext";
@@ -22,6 +23,10 @@ import CartDrawer from "./components/CartDrawer";
 import WhatsAppButton from "./components/WhatsAppButton";
 import SplashScreen from "./components/SplashScreen";
 import InstallPrompt from "./components/InstallPrompt";
+const DevComponentShowcase = import.meta.env.DEV
+  ? lazy(() => import("./pages/ComponentShowcase"))
+  : null;
+
 
 function Router() {
   return (
@@ -37,6 +42,13 @@ function Router() {
       <Route path="/meus-pedidos" component={MyOrders} />
       <Route path="/admin" component={Admin} />
       <Route path="/pedido/:orderId" component={OrderStatus} />
+      {DevComponentShowcase && (
+        <Route path="/components">
+          <Suspense fallback={null}>
+            <DevComponentShowcase />
+          </Suspense>
+        </Route>
+      )}
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
