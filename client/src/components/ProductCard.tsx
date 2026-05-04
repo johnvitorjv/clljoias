@@ -5,12 +5,14 @@ import { WHATSAPP_NUMBER } from "@shared/types";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import type { Product } from "@shared/types";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 
 interface ProductCardProps {
   product: Product;
+  index?: number;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const { addItem } = useCart();
   const [, navigate] = useLocation();
   const images = (product.images as string[] | null) || [];
@@ -19,6 +21,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const price = parseFloat(product.price);
   const originalPrice = product.originalPrice ? parseFloat(product.originalPrice) : null;
   const discount = product.discountPercent || 0;
+  const { allowRichMotion, allowHoverEffects } = useMotionPreferences();
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -47,9 +50,9 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={allowRichMotion ? { opacity: 0, y: 16 } : { opacity: 0 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
+      transition={{ duration: allowRichMotion ? 0.35 : 0.18, delay: allowRichMotion ? Math.min(index, 5) * 0.06 : 0 }}
     >
       <div
         className="group block cursor-pointer"
@@ -64,13 +67,13 @@ export default function ProductCard({ product }: ProductCardProps) {
               <img
                 src={mainImage}
                 alt={product.name}
-                className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+                className={`w-full h-full object-cover transition-all duration-500 ${allowHoverEffects ? "group-hover:scale-105" : ""}`}
               />
               {secondImage && (
                 <img
                   src={secondImage}
                   alt={product.name}
-                  className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${allowHoverEffects ? "opacity-0 group-hover:opacity-100" : "opacity-0"}`}
                 />
               )}
             </>
@@ -88,7 +91,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           )}
 
           {/* Hover actions */}
-          <div className="absolute bottom-0 left-0 right-0 p-2 flex gap-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+          <div className={`absolute bottom-0 left-0 right-0 p-2 flex gap-2 transition-transform duration-300 ${allowHoverEffects ? "translate-y-full group-hover:translate-y-0" : "translate-y-0"}`}>
             <button
               onClick={handleAddToCart}
               className="flex-1 bg-white/95 backdrop-blur-sm text-foreground text-xs font-medium py-2.5 rounded-md hover:bg-white transition-colors flex items-center justify-center gap-1.5"
@@ -108,7 +111,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </div>
 
           {/* Mobile actions always visible */}
-          <div className="absolute bottom-2 right-2 flex gap-1.5 lg:hidden">
+          <div className={`absolute bottom-2 right-2 flex gap-1.5 ${allowHoverEffects ? "lg:hidden" : ""}`}>
             <button
               onClick={handleAddToCart}
               className="bg-white/90 p-2 rounded-full shadow-sm"
@@ -119,7 +122,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         <div className="mt-3 space-y-1">
-          <p className="text-sm font-medium truncate group-hover:text-[oklch(0.65_0.12_350)] transition-colors">
+          <p className={`text-sm font-medium truncate transition-colors ${allowHoverEffects ? "group-hover:text-[oklch(0.65_0.12_350)]" : ""}`}>
             {product.name}
           </p>
           <p className="text-xs text-muted-foreground">{product.material} · {product.accessoryType}</p>
