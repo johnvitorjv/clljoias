@@ -1,10 +1,12 @@
 import { Link, useLocation } from "wouter";
+import { useState } from "react";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { FREE_SHIPPING_THRESHOLD } from "@shared/types";
 
 export default function Cart() {
+  const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
   const { items, removeItem, updateQuantity, subtotal, clearCart } = useCart();
   const [, navigate] = useLocation();
   const freeShippingDiff = FREE_SHIPPING_THRESHOLD - subtotal;
@@ -38,10 +40,23 @@ export default function Cart() {
           <div className="lg:col-span-2 space-y-4">
             {items.map(item => (
               <div key={item.productId} className="flex gap-4 p-4 bg-white rounded-xl border border-border/50">
-                {item.image && (
+                {item.image && !failedImages[item.productId] ? (
                   <Link href={`/produto/${item.slug}`}>
-                    <img src={item.image} alt={item.name} className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover" />
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      loading="lazy"
+                      decoding="async"
+                      width={96}
+                      height={96}
+                      onError={() => setFailedImages(prev => ({ ...prev, [item.productId]: true }))}
+                      className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover"
+                    />
                   </Link>
+                ) : (
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg bg-muted flex items-center justify-center text-muted-foreground/40">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
                 )}
                 <div className="flex-1 min-w-0">
                   <Link href={`/produto/${item.slug}`} className="font-medium text-sm hover:text-[oklch(0.65_0.12_350)] transition-colors">

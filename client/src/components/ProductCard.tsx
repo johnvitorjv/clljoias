@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { ShoppingBag, MessageCircle } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
@@ -8,9 +9,10 @@ import type { Product } from "@shared/types";
 
 interface ProductCardProps {
   product: Product;
+  priority?: boolean;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, priority = false }: ProductCardProps) {
   const { addItem } = useCart();
   const [, navigate] = useLocation();
   const images = (product.images as string[] | null) || [];
@@ -19,6 +21,9 @@ export default function ProductCard({ product }: ProductCardProps) {
   const price = parseFloat(product.price);
   const originalPrice = product.originalPrice ? parseFloat(product.originalPrice) : null;
   const discount = product.discountPercent || 0;
+  const [mainImageFailed, setMainImageFailed] = useState(false);
+  const [secondImageFailed, setSecondImageFailed] = useState(false);
+  const [showSecondaryImage, setShowSecondaryImage] = useState(false);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -53,23 +58,37 @@ export default function ProductCard({ product }: ProductCardProps) {
     >
       <div
         className="group block cursor-pointer"
+        onMouseEnter={() => setShowSecondaryImage(true)}
+        onFocus={() => setShowSecondaryImage(true)}
+        onTouchStart={() => setShowSecondaryImage(true)}
         onClick={() => navigate(`/produto/${product.slug}`)}
         role="link"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/produto/${product.slug}`); }}
       >
         <div className="relative overflow-hidden rounded-lg bg-muted/30 aspect-square">
-          {mainImage ? (
+          {mainImage && !mainImageFailed ? (
             <>
               <img
                 src={mainImage}
                 alt={product.name}
+                loading={priority ? "eager" : "lazy"}
+                decoding="async"
+                fetchPriority={priority ? "high" : "auto"}
+                width={600}
+                height={600}
+                onError={() => setMainImageFailed(true)}
                 className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
               />
-              {secondImage && (
+              {secondImage && showSecondaryImage && !secondImageFailed && (
                 <img
                   src={secondImage}
                   alt={product.name}
+                  loading="lazy"
+                  decoding="async"
+                  width={600}
+                  height={600}
+                  onError={() => setSecondImageFailed(true)}
                   className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                 />
               )}
