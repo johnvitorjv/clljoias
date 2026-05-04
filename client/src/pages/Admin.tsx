@@ -9,11 +9,57 @@ import { Package, ShoppingCart, BarChart3, Plus, Pencil, Trash2, ImagePlus, Wand
 import { toast } from "sonner";
 import { CATEGORY_LINES, MATERIALS, ACCESSORY_TYPES } from "@shared/types";
 
+const ADMIN_TOKEN_KEY = "admin_token";
+const ADMIN_TOKEN_EXPIRES_KEY = "admin_token_expires_at";
+const FALLBACK_TOKEN_TTL_MS = 1000 * 60 * 10;
+
+const clearAdminTokenFallback = () => {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_EXPIRES_KEY);
+};
+
+const persistAdminTokenFallback = (token?: string, expiresAt?: number) => {
+  if (!token || !expiresAt) {
+    clearAdminTokenFallback();
+    return;
+  }
+  const safeExpiresAt = Math.min(expiresAt, Date.now() + FALLBACK_TOKEN_TTL_MS);
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  localStorage.setItem(ADMIN_TOKEN_EXPIRES_KEY, String(safeExpiresAt));
+};
+
+const hasValidAdminTokenFallback = () => {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const expiresAtRaw = localStorage.getItem(ADMIN_TOKEN_EXPIRES_KEY);
+  if (!token || !expiresAtRaw) return false;
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+    clearAdminTokenFallback();
+    return false;
+  }
+  return true;
+};
+
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [adminAuth, setAdminAuth] = useState(false);
   const [password, setPassword] = useState("");
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null);
   const adminLogin = trpc.admin.login.useMutation();
+  const adminLogout = trpc.admin.logout.useMutation();
+
+  useEffect(() => {
+    if (!hasValidAdminTokenFallback()) return;
+    const expiresAt = Number(localStorage.getItem(ADMIN_TOKEN_EXPIRES_KEY));
+    const timeout = window.setTimeout(() => {
+      clearAdminTokenFallback();
+      setAdminAuth(false);
+      setSessionMessage("Sua sessão administrativa expirou. Faça login novamente.");
+      toast.info("Sessão expirada. Entre novamente.");
+      adminLogout.mutate();
+    }, Math.max(0, expiresAt - Date.now()));
+    return () => window.clearTimeout(timeout);
+  }, [adminLogout]);
 
   const isAdmin = user?.role === "admin";
 
@@ -24,17 +70,24 @@ export default function Admin() {
       <div className="container py-20 max-w-sm mx-auto text-center">
         <h2 className="text-xl font-serif font-bold mb-4">Painel Administrativo</h2>
         <p className="text-sm text-muted-foreground mb-6">Digite a senha de administrador</p>
+        {sessionMessage && <p className="text-sm text-amber-700 mb-4">{sessionMessage}</p>}
         <form onSubmit={async (e) => {
           e.preventDefault();
           const result = await adminLogin.mutateAsync({ password });
           if (result.success) {
-            // Save token to localStorage for Safari iOS (cookies blocked by ITP)
-            if ((result as any).token) {
-              localStorage.setItem("admin_token", (result as any).token);
+            // Prefer httpOnly cookie session; localStorage token is short-lived fallback only.
+            if (result.token && result.expiresAt) {
+              persistAdminTokenFallback(result.token, result.expiresAt);
             }
+            setSessionMessage(null);
             setAdminAuth(true); toast.success("Acesso autorizado");
           }
-          else toast.error(result.error || "Senha incorreta");
+          else {
+            clearAdminTokenFallback();
+            setAdminAuth(false);
+            setSessionMessage(result.error || "Sessão inválida ou expirada. Faça login novamente.");
+            toast.error(result.error || "Senha incorreta");
+          }
         }} className="space-y-3">
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Senha" className="w-full px-3 py-2 border rounded-md text-sm" />
           <Button type="submit" className="w-full bg-[oklch(0.65_0.12_350)] hover:bg-[oklch(0.55_0.12_350)] text-white" disabled={adminLogin.isPending}>

@@ -265,6 +265,7 @@ export const appRouter = router({
       // Set admin cookie (cross-origin compatible)
       const cookieValue = Buffer.from(adminPassword).toString("base64");
       const isSecure = ctx.req.protocol === "https" || ctx.req.headers["x-forwarded-proto"] === "https";
+      const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 7;
       ctx.res.cookie(ADMIN_COOKIE_NAME, cookieValue, {
         httpOnly: true,
         path: "/",
@@ -272,7 +273,7 @@ export const appRouter = router({
         secure: isSecure,
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       });
-      return { success: true, token: cookieValue };
+      return { success: true, token: cookieValue, expiresAt };
     }),
     checkAuth: publicProcedure.query(async ({ ctx }) => {
       return { isAdmin: isAdminRequest(ctx) };
