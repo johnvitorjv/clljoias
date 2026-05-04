@@ -133,9 +133,13 @@ export const appRouter = router({
       base64: z.string(), filename: z.string(), contentType: z.string().default("image/jpeg"),
     })).mutation(async ({ input, ctx }) => {
       if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
-      const buffer = Buffer.from(input.base64, "base64");
-      const key = `products/${nanoid()}-${input.filename}`;
-      const { url } = await storagePut(key, buffer, input.contentType);
+      const cleanBase64 = input.base64.includes(",") ? input.base64.split(",").pop() || "" : input.base64;
+      if (!cleanBase64) throw new TRPCError({ code: "BAD_REQUEST", message: "Imagem inválida" });
+      const buffer = Buffer.from(cleanBase64, "base64");
+      const ext = (input.filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const key = `products/${nanoid()}.${ext}`;
+      const safeContentType = input.contentType?.trim() || `image/${ext === "jpg" ? "jpeg" : ext}`;
+      const { url } = await storagePut(key, buffer, safeContentType);
       return { url };
     }),
     generateImage: publicProcedure.input(z.object({ prompt: z.string().min(1) })).mutation(async ({ input, ctx }) => {
