@@ -88,3 +88,40 @@ export async function storageDelete(relKey: string): Promise<void> {
     );
   }
 }
+
+
+export async function storageCreateSignedUploadUrl(relKey: string, contentType = "application/octet-stream"): Promise<{ key: string; uploadUrl: string; publicUrl: string }> {
+  const { supabaseUrl, supabaseKey } = getSupabaseConfig();
+  const key = normalizeKey(relKey);
+
+  const signedUrlEndpoint = `${supabaseUrl}/storage/v1/object/upload/sign/${SUPABASE_BUCKET}/${key}`;
+
+  const response = await fetch(signedUrlEndpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${supabaseKey}`,
+      apikey: supabaseKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ upsert: true, contentType }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => response.statusText);
+    throw new Error(
+      `Storage signed URL failed (${response.status} ${response.statusText}): ${message}`
+    );
+  }
+
+  const json = await response.json() as { token?: string; signedURL?: string };
+  const signedURL = json.signedURL || "";
+  const token = json.token || "";
+
+  const uploadUrl = signedURL.startsWith("http")
+    ? signedURL
+    : `${supabaseUrl}${signedURL}${signedURL.includes("?") ? "&" : "?"}token=${token}`;
+
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/${SUPABASE_BUCKET}/${key}`;
+
+  return { key, uploadUrl, publicUrl };
+}

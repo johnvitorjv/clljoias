@@ -7,7 +7,7 @@ import { z } from "zod";
 import * as db from "./db";
 import { FREE_SHIPPING_THRESHOLD, LOCAL_CITIES, ADMIN_COOKIE_NAME, validateCPF, validateEmail, validatePhone } from "@shared/types";
 import { nanoid } from "nanoid";
-import { storagePut } from "./storage";
+import { storageCreateSignedUploadUrl, storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { generateImage } from "./_core/imageGeneration";
 
@@ -127,6 +127,15 @@ export const appRouter = router({
       const { url } = await storagePut(key, buffer, input.contentType);
       const isVideo = input.contentType.startsWith("video/");
       return { url, type: isVideo ? "video" : "image" };
+    }),
+    createUploadUrl: publicProcedure.input(z.object({
+      filename: z.string(), contentType: z.string().default("application/octet-stream"),
+    })).mutation(async ({ input, ctx }) => {
+      if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
+      const ext = input.filename.includes(".") ? (input.filename.split(".").pop() || "bin") : "bin";
+      const key = `products/${nanoid()}.${ext}`;
+      const { uploadUrl, publicUrl } = await storageCreateSignedUploadUrl(key, input.contentType);
+      return { uploadUrl, publicUrl, key };
     }),
     // Keep old name for backwards compat
     uploadImage: publicProcedure.input(z.object({
