@@ -8,6 +8,29 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+const ADMIN_TOKEN_KEY = "admin_token";
+const ADMIN_TOKEN_EXPIRES_KEY = "admin_token_expires_at";
+
+const clearAdminTokenFallback = () => {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_EXPIRES_KEY);
+};
+
+const getValidAdminTokenFallback = () => {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const expiresAtRaw = localStorage.getItem(ADMIN_TOKEN_EXPIRES_KEY);
+  if (!token || !expiresAtRaw) {
+    clearAdminTokenFallback();
+    return null;
+  }
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+    clearAdminTokenFallback();
+    return null;
+  }
+  return token;
+};
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
@@ -17,6 +40,8 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;
+
+  clearAdminTokenFallback();
 
   window.location.href = getLoginUrl();
 };
@@ -44,8 +69,8 @@ const trpcClient = trpc.createClient({
       transformer: superjson,
       fetch(input, init) {
         const headers = new Headers((init as any)?.headers);
-        // Send admin token as Authorization header (Safari iOS blocks cross-site cookies)
-        const adminToken = localStorage.getItem("admin_token");
+        // Fallback token for environments where httpOnly cookie session is blocked.
+        const adminToken = getValidAdminTokenFallback();
         if (adminToken) {
           headers.set("Authorization", `Bearer ${adminToken}`);
         }
