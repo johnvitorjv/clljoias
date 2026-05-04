@@ -100,6 +100,7 @@ function ProductsTab() {
   const updateProduct = trpc.products.update.useMutation({ onSuccess: () => { utils.products.listAll.invalidate(); toast.success("Produto atualizado!"); } });
   const deleteProduct = trpc.products.delete.useMutation({ onSuccess: () => { utils.products.listAll.invalidate(); toast.success("Produto removido!"); } });
   const uploadImage = trpc.products.uploadImage.useMutation();
+  const createUploadUrl = trpc.products.createUploadUrl.useMutation();
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -169,6 +170,7 @@ function ProductsTab() {
             }}
             onCancel={() => { setShowForm(false); setEditingProduct(null); }}
             uploadImage={uploadImage}
+            createUploadUrl={createUploadUrl}
           />
         </div>
       )}
@@ -176,7 +178,7 @@ function ProductsTab() {
   );
 }
 
-function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
+function ProductForm({ product, onSave, onCancel, uploadImage, createUploadUrl }: any) {
   const [name, setName] = useState(product?.name || "");
   const [slug, setSlug] = useState(product?.slug || "");
   const [description, setDescription] = useState(product?.description || "");
@@ -200,16 +202,55 @@ function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
     const files = e.target.files;
     if (!files) return;
     for (const file of Array.from(files)) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        try {
-          const result = await uploadImage.mutateAsync({ base64, filename: file.name, contentType: file.type });
-          setImages(prev => [...prev, result.url]);
-          toast.success("Imagem enviada!");
-        } catch { toast.error("Erro ao enviar imagem"); }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { uploadUrl, publicUrl } = await createUploadUrl.mutateAsync({
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+        });
+
+        const response = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "x-upsert": "true",
+          },
+          body: file,
+        });
+
+        if (!response.ok) {
+          const responseText = await response.text().catch(() => "");
+          console.error("[Admin Upload] HTTP failure", {
+            status: response.status,
+            statusText: response.statusText,
+            responseText,
+            filename: file.name,
+            contentType: file.type,
+          });
+          throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        }
+
+        setImages(prev => [...prev, publicUrl]);
+        toast.success("Imagem enviada!");
+      } catch (error) {
+        console.error("[Admin Upload] Network or upload error", {
+          error,
+          filename: file.name,
+          contentType: file.type,
+        });
+
+        const fallbackReader = new FileReader();
+        fallbackReader.onload = async () => {
+          const base64 = (fallbackReader.result as string).split(",")[1];
+          try {
+            const result = await uploadImage.mutateAsync({ base64, filename: file.name, contentType: file.type });
+            setImages(prev => [...prev, result.url]);
+            toast.success("Imagem enviada (modo compatibilidade)!");
+          } catch {
+            toast.error("Erro ao enviar imagem");
+          }
+        };
+        fallbackReader.readAsDataURL(file);
+      }
     }
   };
 
@@ -296,8 +337,8 @@ function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
           ))}
         </div>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
-        <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-1" disabled={uploadImage.isPending}>
-          <ImagePlus className="w-3.5 h-3.5" /> {uploadImage.isPending ? "Enviando..." : "Adicionar Imagem"}
+        <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-1" disabled={uploadImage.isPending || createUploadUrl.isPending}>
+          <ImagePlus className="w-3.5 h-3.5" /> {(uploadImage.isPending || createUploadUrl.isPending) ? "Enviando..." : "Adicionar Imagem"}
         </Button>
       </div>
       <div className="flex gap-4">
