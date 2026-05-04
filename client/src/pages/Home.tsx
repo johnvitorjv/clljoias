@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { ArrowRight, Gem, Shield, Truck, Star, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard";
-import { motion } from "framer-motion";
 import { WHATSAPP_URL, CATEGORY_LINES } from "@shared/types";
 
 const LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663370743129/SRLuMBLhpOzKodgg.png";
@@ -35,7 +34,7 @@ export default function Home() {
       <section className="relative overflow-hidden bg-gradient-to-br from-[oklch(0.97_0.02_350)] via-white to-[oklch(0.96_0.03_80)]">
         <div className="container py-16 lg:py-24">
           <div className="max-w-2xl mx-auto text-center">
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
               <span className="inline-block text-xs tracking-[0.3em] uppercase text-[oklch(0.65_0.12_350)] font-medium mb-4">@cll.joias</span>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight">
                 Elegância que <span className="text-[oklch(0.65_0.12_350)]">traduz</span> quem você é
@@ -55,7 +54,7 @@ export default function Home() {
                   </Button>
                 </a>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
         <div className="absolute top-10 left-10 w-32 h-32 bg-[oklch(0.72_0.11_350)]/5 rounded-full blur-3xl" />
@@ -129,13 +128,13 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {CATEGORY_LINES.map((cat, i) => (
-              <motion.div key={cat} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
+              <div key={cat} className="animate-in fade-in slide-in-from-bottom-1 duration-500" style={{ animationDelay: `${i * 50}ms` }}>
                 <Link href={`/categoria/${categorySlugMap[cat]}`} className="group block p-6 bg-white rounded-xl border border-border/50 hover:border-[oklch(0.65_0.12_350)]/30 hover:shadow-md transition-all text-center">
                   <Gem className="w-6 h-6 mx-auto text-[oklch(0.65_0.12_350)] mb-3 group-hover:scale-110 transition-transform" />
                   <h3 className="font-serif font-semibold text-sm">{cat}</h3>
                   <p className="text-xs text-muted-foreground mt-1">{categoryDescriptions[cat]}</p>
                 </Link>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -145,7 +144,7 @@ export default function Home() {
       <section className="py-14 lg:py-20">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center">
-            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <div className="animate-in fade-in slide-in-from-bottom-1 duration-700">
               <img src={LOGO_URL} alt="CLL JOIAS" className="h-20 mx-auto mb-6 opacity-80" />
               <h2 className="text-2xl md:text-3xl font-serif font-bold mb-4">Sobre a CLL JOIAS</h2>
               <p className="text-muted-foreground leading-relaxed mb-3">
@@ -164,7 +163,7 @@ export default function Home() {
                   </Button>
                 </a>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>

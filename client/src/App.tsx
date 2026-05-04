@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -13,8 +14,6 @@ import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import SearchResults from "./pages/SearchResults";
 import Materials from "./pages/Materials";
-import MyOrders from "./pages/MyOrders";
-import Admin from "./pages/Admin";
 import OrderStatus from "./pages/OrderStatus";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -23,23 +22,28 @@ import WhatsAppButton from "./components/WhatsAppButton";
 import SplashScreen from "./components/SplashScreen";
 import InstallPrompt from "./components/InstallPrompt";
 
+const MyOrders = lazy(() => import("./pages/MyOrders"));
+const Admin = lazy(() => import("./pages/Admin"));
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/catalogo" component={Catalog} />
-      <Route path="/categoria/:slug" component={Category} />
-      <Route path="/produto/:slug" component={ProductDetail} />
-      <Route path="/carrinho" component={Cart} />
-      <Route path="/checkout" component={Checkout} />
-      <Route path="/busca" component={SearchResults} />
-      <Route path="/materiais" component={Materials} />
-      <Route path="/meus-pedidos" component={MyOrders} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/pedido/:orderId" component={OrderStatus} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<div className="container py-10 text-sm text-muted-foreground">Carregando...</div>}>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/catalogo" component={Catalog} />
+        <Route path="/categoria/:slug" component={Category} />
+        <Route path="/produto/:slug" component={ProductDetail} />
+        <Route path="/carrinho" component={Cart} />
+        <Route path="/checkout" component={Checkout} />
+        <Route path="/busca" component={SearchResults} />
+        <Route path="/materiais" component={Materials} />
+        <Route path="/meus-pedidos" component={MyOrders} />
+        <Route path="/admin" component={Admin} />
+        <Route path="/pedido/:orderId" component={OrderStatus} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
