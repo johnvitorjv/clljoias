@@ -11,6 +11,38 @@ import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { generateImage } from "./_core/imageGeneration";
 
+const PRODUCT_UPLOAD_CONTENT_TYPES = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+} as const;
+
+const PRODUCT_UPLOAD_EXTENSIONS = new Set(Object.values(PRODUCT_UPLOAD_CONTENT_TYPES));
+
+function sanitizeUploadExtension(filename: string, contentType: string): string {
+  const fallbackExt = PRODUCT_UPLOAD_CONTENT_TYPES[contentType as keyof typeof PRODUCT_UPLOAD_CONTENT_TYPES];
+  if (!fallbackExt) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `contentType não permitido: ${contentType}` });
+  }
+
+  const rawExt = filename.includes(".") ? filename.split(".").pop() ?? "" : "";
+  const normalizedExt = rawExt.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalizedExt && PRODUCT_UPLOAD_EXTENSIONS.has(normalizedExt as any)) {
+    return normalizedExt;
+  }
+
+  return fallbackExt;
+}
+
+function makeProductUploadKey(filename: string, contentType: string): string {
+  const ext = sanitizeUploadExtension(filename, contentType);
+  return `products/${nanoid()}.${ext}`;
+}
+
 // Admin middleware that checks either OAuth admin role OR admin password cookie
 const adminMiddleware = router({}).createCaller; // placeholder
 function isAdminRequest(ctx: any): boolean {
@@ -122,8 +154,7 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
       const buffer = Buffer.from(input.base64, "base64");
-      const ext = input.filename.split(".").pop() || "jpg";
-      const key = `products/${nanoid()}.${ext}`;
+      const key = makeProductUploadKey(input.filename, input.contentType);
       const { url } = await storagePut(key, buffer, input.contentType);
       const isVideo = input.contentType.startsWith("video/");
       return { url, type: isVideo ? "video" : "image" };
@@ -134,7 +165,7 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
       const buffer = Buffer.from(input.base64, "base64");
-      const key = `products/${nanoid()}-${input.filename}`;
+      const key = makeProductUploadKey(input.filename, input.contentType);
       const { url } = await storagePut(key, buffer, input.contentType);
       return { url };
     }),
