@@ -5,8 +5,10 @@ import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { FREE_SHIPPING_THRESHOLD } from "@shared/types";
+import { useState } from "react";
 
 export default function CartDrawer() {
+  const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
   const { items, removeItem, updateQuantity, subtotal, isOpen, setIsOpen, itemCount } = useCart();
   const [, navigate] = useLocation();
   const freeShippingDiff = FREE_SHIPPING_THRESHOLD - subtotal;
@@ -50,8 +52,21 @@ export default function CartDrawer() {
                     exit={{ opacity: 0, x: -20 }}
                     className="flex gap-3 p-3 rounded-lg bg-muted/30"
                   >
-                    {item.image && (
-                      <img src={item.image} alt={item.name} className="w-16 h-16 rounded-md object-cover" />
+                    {item.image && !failedImages[item.productId] ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        loading="lazy"
+                        decoding="async"
+                        width={64}
+                        height={64}
+                        onError={() => setFailedImages(prev => ({ ...prev, [item.productId]: true }))}
+                        className="w-16 h-16 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center text-muted-foreground/40">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.name}</p>

@@ -15,6 +15,9 @@ export default function ProductDetail() {
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [hasGalleryInteracted, setHasGalleryInteracted] = useState(false);
+  const [mainImageFailed, setMainImageFailed] = useState(false);
+  const [thumbnailFailures, setThumbnailFailures] = useState<Record<number, boolean>>({});
   const [cep, setCep] = useState("");
   const shippingQuote = trpc.shipping.quote.useMutation();
 
@@ -81,14 +84,20 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Gallery */}
           <div className="space-y-3">
-            <div className="relative aspect-square rounded-xl overflow-hidden bg-muted/30">
-              {images.length > 0 ? (
+            <div className="relative aspect-square rounded-xl overflow-hidden bg-muted/30" onMouseEnter={() => setHasGalleryInteracted(true)}>
+              {images.length > 0 && !mainImageFailed ? (
                 <>
                   <AnimatePresence mode="wait">
                     <motion.img
                       key={selectedImage}
                       src={images[selectedImage]}
                       alt={product.name}
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
+                      width={900}
+                      height={900}
+                      onError={() => setMainImageFailed(true)}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -97,10 +106,10 @@ export default function ProductDetail() {
                   </AnimatePresence>
                   {images.length > 1 && (
                     <>
-                      <button onClick={() => setSelectedImage(i => i > 0 ? i - 1 : images.length - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow hover:bg-white">
+                      <button onClick={() => { setHasGalleryInteracted(true); setSelectedImage(i => i > 0 ? i - 1 : images.length - 1); }} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow hover:bg-white">
                         <ChevronLeft className="w-4 h-4" />
                       </button>
-                      <button onClick={() => setSelectedImage(i => i < images.length - 1 ? i + 1 : 0)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow hover:bg-white">
+                      <button onClick={() => { setHasGalleryInteracted(true); setSelectedImage(i => i < images.length - 1 ? i + 1 : 0); }} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow hover:bg-white">
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </>
@@ -117,15 +126,30 @@ export default function ProductDetail() {
                 </span>
               )}
             </div>
-            {images.length > 1 && (
+            {images.length > 1 && hasGalleryInteracted && (
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {images.map((img, i) => (
                   <button
                     key={i}
-                    onClick={() => setSelectedImage(i)}
+                    onClick={() => { setHasGalleryInteracted(true); setSelectedImage(i); }}
                     className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors ${i === selectedImage ? "border-[oklch(0.65_0.12_350)]" : "border-transparent"}`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    {!thumbnailFailures[i] ? (
+                      <img
+                        src={img}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        width={64}
+                        height={64}
+                        onError={() => setThumbnailFailures(prev => ({ ...prev, [i]: true }))}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground/40">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
