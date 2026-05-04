@@ -8,18 +8,35 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
-// CORS middleware for cross-origin requests (Cloudflare Pages -> Render)
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean)
+);
+
+function isAllowedOrigin(origin?: string): origin is string {
+  return !!origin && allowedOrigins.has(origin);
+}
+
+// CORS middleware com allowlist explícita (Cloudflare Pages -> Render)
 function corsMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   const origin = req.headers.origin;
-  if (origin) {
+  const originAllowed = isAllowedOrigin(origin);
+
+  if (originAllowed && origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  } else if (origin && process.env.NODE_ENV !== "production") {
+    console.warn(`[cors] origem rejeitada: ${origin}`);
   }
+
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+    return originAllowed ? res.sendStatus(200) : res.sendStatus(403);
   }
+
   next();
 }
 
