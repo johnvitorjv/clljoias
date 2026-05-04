@@ -9,6 +9,14 @@ import { Package, ShoppingCart, BarChart3, Plus, Pencil, Trash2, ImagePlus, Wand
 import { toast } from "sonner";
 import { CATEGORY_LINES, MATERIALS, ACCESSORY_TYPES } from "@shared/types";
 
+type UploadStatus = "pendente" | "enviando" | "concluido" | "erro";
+type UploadItem = {
+  id: string;
+  name: string;
+  status: UploadStatus;
+  reason?: string;
+};
+
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [adminAuth, setAdminAuth] = useState(false);
@@ -177,6 +185,10 @@ function ProductsTab() {
 }
 
 function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
+  const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  const MAX_FILE_SIZE_MB = 5;
+  const MAX_FILES_PER_UPLOAD = 8;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
   const [name, setName] = useState(product?.name || "");
   const [slug, setSlug] = useState(product?.slug || "");
   const [description, setDescription] = useState(product?.description || "");
@@ -192,25 +204,98 @@ function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
   const [stock, setStock] = useState(product?.stock || 0);
   const [weightGrams, setWeightGrams] = useState(product?.weightGrams || 200);
   const [saving, setSaving] = useState(false);
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const generateSlug = (n: string) => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+  const convertFileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1]);
+      };
+      reader.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+      reader.readAsDataURL(file);
+    });
+
+  const compressImage = async (file: File): Promise<File> => {
+    if (file.type === "image/png") return file;
+    const imageBitmap = await createImageBitmap(file);
+    const maxDimension = 1800;
+    const ratio = Math.min(maxDimension / imageBitmap.width, maxDimension / imageBitmap.height, 1);
+    const width = Math.round(imageBitmap.width * ratio);
+    const height = Math.round(imageBitmap.height * ratio);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(imageBitmap, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.85));
+    if (!blob) return file;
+    const compressed = new File([blob], file.name.replace(/\.[^/.]+$/, ".webp"), { type: "image/webp" });
+    return compressed.size < file.size ? compressed : file;
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    for (const file of Array.from(files)) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        try {
-          const result = await uploadImage.mutateAsync({ base64, filename: file.name, contentType: file.type });
-          setImages(prev => [...prev, result.url]);
-          toast.success("Imagem enviada!");
-        } catch { toast.error("Erro ao enviar imagem"); }
-      };
-      reader.readAsDataURL(file);
+
+    const selectedFiles = Array.from(files);
+    const acceptedFiles = selectedFiles.slice(0, MAX_FILES_PER_UPLOAD);
+    const rejectedByLimit = selectedFiles.slice(MAX_FILES_PER_UPLOAD);
+
+    rejectedByLimit.forEach((file) => {
+      toast.error(`${file.name}: limite de ${MAX_FILES_PER_UPLOAD} arquivos por envio.`);
+    });
+
+    const initialItems: UploadItem[] = acceptedFiles.map((file, index) => ({
+      id: `${Date.now()}-${index}-${file.name}`,
+      name: file.name,
+      status: "pendente",
+    }));
+    setUploadItems(initialItems);
+
+    for (let i = 0; i < acceptedFiles.length; i++) {
+      const file = acceptedFiles[i];
+      const itemId = initialItems[i].id;
+
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        const reason = `tipo inválido (${file.type || "desconhecido"})`;
+        setUploadItems((prev) => prev.map((item) => item.id === itemId ? { ...item, status: "erro", reason } : item));
+        toast.error(`${file.name}: ${reason}. Permitidos: JPEG, PNG e WEBP.`);
+        continue;
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        const reason = `excede ${MAX_FILE_SIZE_MB} MB`;
+        setUploadItems((prev) => prev.map((item) => item.id === itemId ? { ...item, status: "erro", reason } : item));
+        toast.error(`${file.name}: ${reason}.`);
+        continue;
+      }
+
+      setUploadItems((prev) => prev.map((item) => item.id === itemId ? { ...item, status: "enviando", reason: undefined } : item));
+      try {
+        const processedFile = await compressImage(file);
+        const base64 = await convertFileToBase64(processedFile);
+        const result = await uploadImage.mutateAsync({
+          base64,
+          filename: processedFile.name,
+          contentType: processedFile.type,
+        });
+        setImages(prev => [...prev, result.url]);
+        setUploadItems((prev) => prev.map((item) => item.id === itemId ? { ...item, status: "concluido" } : item));
+        toast.success(`${file.name}: imagem enviada com sucesso!`);
+      } catch {
+        const reason = "erro durante o upload";
+        setUploadItems((prev) => prev.map((item) => item.id === itemId ? { ...item, status: "erro", reason } : item));
+        toast.error(`${file.name}: ${reason}.`);
+      }
     }
+
+    e.target.value = "";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -299,6 +384,15 @@ function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
         <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-1" disabled={uploadImage.isPending}>
           <ImagePlus className="w-3.5 h-3.5" /> {uploadImage.isPending ? "Enviando..." : "Adicionar Imagem"}
         </Button>
+        {uploadItems.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {uploadItems.map((item) => (
+              <p key={item.id} className="text-xs text-muted-foreground">
+                {item.name} — {item.status}{item.reason ? ` (${item.reason})` : ""}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex gap-4">
         <label className="flex items-center gap-2 text-sm">
