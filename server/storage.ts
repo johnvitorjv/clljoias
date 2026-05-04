@@ -5,15 +5,20 @@ const SUPABASE_BUCKET = "media";
 
 function getSupabaseConfig() {
   const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      "Supabase credentials missing: set SUPABASE_URL and SUPABASE_ANON_KEY"
-    );
+  if (!supabaseUrl) {
+    throw new Error("Supabase config missing: set SUPABASE_URL");
   }
 
-  return { supabaseUrl: supabaseUrl.replace(/\/+$/, ""), supabaseKey };
+  if (!supabaseServiceRoleKey) {
+    throw new Error("Supabase config missing: set SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  return {
+    supabaseUrl: supabaseUrl.replace(/\/+$/, ""),
+    supabaseServiceRoleKey,
+  };
 }
 
 function normalizeKey(relKey: string): string {
@@ -25,7 +30,7 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { supabaseUrl, supabaseKey } = getSupabaseConfig();
+  const { supabaseUrl, supabaseServiceRoleKey } = getSupabaseConfig();
   const key = normalizeKey(relKey);
 
   const uploadUrl = `${supabaseUrl}/storage/v1/object/${SUPABASE_BUCKET}/${key}`;
@@ -38,8 +43,8 @@ export async function storagePut(
   const response = await fetch(uploadUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${supabaseKey}`,
-      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      apikey: supabaseServiceRoleKey,
       "Content-Type": contentType,
       "x-upsert": "true",
     },
@@ -68,7 +73,7 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
 }
 
 export async function storageDelete(relKey: string): Promise<void> {
-  const { supabaseUrl, supabaseKey } = getSupabaseConfig();
+  const { supabaseUrl, supabaseServiceRoleKey } = getSupabaseConfig();
   const key = normalizeKey(relKey);
 
   const deleteUrl = `${supabaseUrl}/storage/v1/object/${SUPABASE_BUCKET}/${key}`;
@@ -76,8 +81,8 @@ export async function storageDelete(relKey: string): Promise<void> {
   const response = await fetch(deleteUrl, {
     method: "DELETE",
     headers: {
-      Authorization: `Bearer ${supabaseKey}`,
-      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      apikey: supabaseServiceRoleKey,
     },
   });
 
