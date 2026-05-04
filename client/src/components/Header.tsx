@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import { Search, ShoppingBag, Menu, X, Heart } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { CATEGORY_LINES } from "@shared/types";
-import { motion, AnimatePresence } from "framer-motion";
 
 const LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663370743129/SRLuMBLhpOzKodgg.png";
 
@@ -79,63 +78,37 @@ export default function Header() {
             <button onClick={() => setIsOpen(true)} className="p-2 hover:text-[oklch(0.65_0.12_350)] transition-colors relative">
               <ShoppingBag className="w-5 h-5" />
               {itemCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 bg-[oklch(0.65_0.12_350)] text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center"
-                >
+                <span className="absolute -top-0.5 -right-0.5 bg-[oklch(0.65_0.12_350)] text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center animate-in zoom-in-75 duration-300">
                   {itemCount}
-                </motion.span>
+                </span>
               )}
             </button>
           </div>
         </div>
 
         {/* Search bar */}
-        <AnimatePresence>
-          {searchOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t border-border/50 overflow-hidden"
-            >
-              <form onSubmit={handleSearch} className="container py-3">
-                <div className="relative max-w-xl mx-auto">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Buscar por nome, tipo, material..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-muted/50 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.65_0.12_350)]/30"
-                    autoFocus
-                  />
-                </div>
-              </form>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className={`border-t border-border/50 overflow-hidden transition-all duration-300 ${searchOpen ? "max-h-32 opacity-100" : "max-h-0 opacity-0"}`}>
+          <form onSubmit={handleSearch} className="container py-3">
+            <div className="relative max-w-xl mx-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar por nome, tipo, material..."
+                className="w-full pl-10 pr-4 py-2.5 bg-muted/50 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.65_0.12_350)]/30"
+                autoFocus={searchOpen}
+              />
+            </div>
+          </form>
+        </div>
       </header>
 
       {/* Mobile menu overlay */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-50"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-            <motion.div
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25 }}
-              className="fixed left-0 top-0 bottom-0 w-80 bg-white z-50 overflow-y-auto"
-            >
+      {mobileMenuOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-50 animate-in fade-in duration-200" onClick={() => setMobileMenuOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-80 bg-white z-50 overflow-y-auto animate-in slide-in-from-left duration-300">
               <div className="p-4 flex items-center justify-between border-b">
                 <img src={LOGO_URL} alt="CLL JOIAS" className="h-10 rounded-full object-cover" />
                 <button onClick={() => setMobileMenuOpen(false)}>
@@ -161,10 +134,9 @@ export default function Header() {
                   Nossos Materiais
                 </Link>
               </nav>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+          </div>
+        </>
+      )}
     </>
   );
 }
