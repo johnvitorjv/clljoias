@@ -210,7 +210,11 @@ function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
           const result = await uploadImage.mutateAsync({ base64, filename: file.name, contentType });
           setImages(prev => [...prev, result.url]);
           toast.success("Imagem enviada!");
-        } catch { toast.error("Erro ao enviar imagem"); }
+        } catch (err: any) {
+          const message = err?.message || "Erro ao enviar imagem";
+          toast.error(message);
+          console.error("[admin.uploadImage]", err);
+        }
       };
       reader.readAsDataURL(file);
     }

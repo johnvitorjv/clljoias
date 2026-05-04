@@ -132,15 +132,20 @@ export const appRouter = router({
     uploadImage: publicProcedure.input(z.object({
       base64: z.string(), filename: z.string(), contentType: z.string().default("image/jpeg"),
     })).mutation(async ({ input, ctx }) => {
-      if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
-      const cleanBase64 = input.base64.includes(",") ? input.base64.split(",").pop() || "" : input.base64;
-      if (!cleanBase64) throw new TRPCError({ code: "BAD_REQUEST", message: "Imagem inválida" });
-      const buffer = Buffer.from(cleanBase64, "base64");
-      const ext = (input.filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      const key = `products/${nanoid()}.${ext}`;
-      const safeContentType = input.contentType?.trim() || `image/${ext === "jpg" ? "jpeg" : ext}`;
-      const { url } = await storagePut(key, buffer, safeContentType);
-      return { url };
+      if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN", message: "Sessão admin inválida" });
+      try {
+        const cleanBase64 = input.base64.includes(",") ? input.base64.split(",").pop() || "" : input.base64;
+        if (!cleanBase64) throw new TRPCError({ code: "BAD_REQUEST", message: "Imagem inválida" });
+        const buffer = Buffer.from(cleanBase64, "base64");
+        const ext = (input.filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        const key = `products/${nanoid()}.${ext}`;
+        const safeContentType = input.contentType?.trim() || `image/${ext === "jpg" ? "jpeg" : ext}`;
+        const { url } = await storagePut(key, buffer, safeContentType);
+        return { url };
+      } catch (error: any) {
+        console.error("[products.uploadImage]", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error?.message || "Falha no upload da imagem" });
+      }
     }),
     generateImage: publicProcedure.input(z.object({ prompt: z.string().min(1) })).mutation(async ({ input, ctx }) => {
       if (!isAdminRequest(ctx)) throw new TRPCError({ code: "FORBIDDEN" });
