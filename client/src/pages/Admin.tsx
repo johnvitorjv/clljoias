@@ -203,11 +203,18 @@ function ProductForm({ product, onSave, onCancel, uploadImage }: any) {
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = (reader.result as string).split(",")[1];
+        const ext = file.name.split(".").pop()?.toLowerCase();
+        const inferredType = ext === "jpg" ? "image/jpeg" : ext ? `image/${ext}` : "image/jpeg";
+        const contentType = file.type?.trim() || inferredType;
         try {
-          const result = await uploadImage.mutateAsync({ base64, filename: file.name, contentType: file.type });
+          const result = await uploadImage.mutateAsync({ base64, filename: file.name, contentType });
           setImages(prev => [...prev, result.url]);
           toast.success("Imagem enviada!");
-        } catch { toast.error("Erro ao enviar imagem"); }
+        } catch (err: any) {
+          const message = err?.message || "Erro ao enviar imagem";
+          toast.error(message);
+          console.error("[admin.uploadImage]", err);
+        }
       };
       reader.readAsDataURL(file);
     }
