@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard";
 import { motion } from "framer-motion";
 import { WHATSAPP_URL, CATEGORY_LINES } from "@shared/types";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 
 const LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663370743129/SRLuMBLhpOzKodgg.png";
 
@@ -28,6 +29,7 @@ const categoryDescriptions: Record<string, string> = {
 
 export default function Home() {
   const { data: featured, isLoading } = trpc.products.featured.useQuery();
+  const { allowRichMotion } = useMotionPreferences();
 
   return (
     <div className="min-h-screen">
@@ -35,7 +37,7 @@ export default function Home() {
       <section className="relative overflow-hidden bg-gradient-to-br from-[oklch(0.97_0.02_350)] via-white to-[oklch(0.96_0.03_80)]">
         <div className="container py-16 lg:py-24">
           <div className="max-w-2xl mx-auto text-center">
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <motion.div initial={allowRichMotion ? { opacity: 0, y: 30 } : { opacity: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: allowRichMotion ? 0.6 : 0.2 }}>
               <span className="inline-block text-xs tracking-[0.3em] uppercase text-[oklch(0.65_0.12_350)] font-medium mb-4">@cll.joias</span>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight">
                 Elegância que <span className="text-[oklch(0.65_0.12_350)]">traduz</span> quem você é
@@ -101,8 +103,8 @@ export default function Home() {
             </div>
           ) : featured && featured.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
-              {featured.map(product => (
-                <ProductCard key={product.id} product={product} />
+              {featured.map((product, index) => (
+                <ProductCard key={product.id} product={product} index={index} />
               ))}
             </div>
           ) : (
@@ -129,7 +131,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {CATEGORY_LINES.map((cat, i) => (
-              <motion.div key={cat} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
+              <motion.div key={cat} initial={allowRichMotion ? { opacity: 0, y: 20 } : { opacity: 0 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: allowRichMotion ? i * 0.05 : 0, duration: allowRichMotion ? 0.3 : 0.15 }}>
                 <Link href={`/categoria/${categorySlugMap[cat]}`} className="group block p-6 bg-white rounded-xl border border-border/50 hover:border-[oklch(0.65_0.12_350)]/30 hover:shadow-md transition-all text-center">
                   <Gem className="w-6 h-6 mx-auto text-[oklch(0.65_0.12_350)] mb-3 group-hover:scale-110 transition-transform" />
                   <h3 className="font-serif font-semibold text-sm">{cat}</h3>
@@ -145,7 +147,7 @@ export default function Home() {
       <section className="py-14 lg:py-20">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center">
-            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <motion.div initial={allowRichMotion ? { opacity: 0, y: 20 } : { opacity: 0 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: allowRichMotion ? 0.35 : 0.15 }}>
               <img src={LOGO_URL} alt="CLL JOIAS" className="h-20 mx-auto mb-6 opacity-80" />
               <h2 className="text-2xl md:text-3xl font-serif font-bold mb-4">Sobre a CLL JOIAS</h2>
               <p className="text-muted-foreground leading-relaxed mb-3">
