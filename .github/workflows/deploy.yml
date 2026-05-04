@@ -1,0 +1,45 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  validate-env:
+    name: Validate environment variables
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [preview, production]
+    environment: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Validate required vars
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          PIXELCUT_API_KEY: ${{ secrets.PIXELCUT_API_KEY }}
+        run: |
+          missing=0
+          for key in DATABASE_URL SESSION_SECRET PIXELCUT_API_KEY; do
+            if [ -z "${!key}" ]; then
+              echo "Missing secret: $key"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+  deploy-production:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    needs: validate-env
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Deploy step goes here"
