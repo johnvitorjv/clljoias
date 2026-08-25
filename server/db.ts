@@ -1,4 +1,4 @@
-import { eq, like, or, and, desc, asc } from "drizzle-orm";
+import { eq, like, or, and, desc, asc, inArray, ne, isNull, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, products, categories, orders, orderItems } from "../drizzle/schema";
@@ -13,11 +13,18 @@ export async function getDb() {
       const client = postgres(process.env.DATABASE_URL);
       _db = drizzle(client);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to create client:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+// Helper to throw if database is unavailable - use for public routes where empty array would hide failure
+export function requireDb(db: ReturnType<typeof drizzle> | null): asserts db is NonNullable<typeof db> {
+  if (!db) {
+    throw new Error("Banco de dados indisponível. Verifique a conexão com o servidor.");
+  }
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -131,45 +138,76 @@ export async function deleteCategory(id: number) {
 // ===== PRODUCTS =====
 export async function getAllProducts() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    console.error("[DB] getAllProducts: database unavailable - returning empty array");
+    return [];
+  }
   return db.select().from(products).orderBy(asc(products.displayOrder), desc(products.createdAt));
 }
 
 export async function getActiveProducts() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    console.error("[DB] getActiveProducts: database unavailable - returning empty array");
+    return [];
+  }
   return db.select().from(products).where(eq(products.active, 1)).orderBy(asc(products.displayOrder), desc(products.createdAt));
 }
 
 export async function getFeaturedProducts() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    console.error("[DB] getFeaturedProducts: database unavailable - returning empty array");
+    return [];
+  }
   return db.select().from(products).where(and(eq(products.active, 1), eq(products.featured, 1))).orderBy(asc(products.displayOrder)).limit(12);
 }
 
 export async function getProductBySlug(slug: string) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) {
+    console.error("[DB] getProductBySlug: database unavailable");
+    return undefined;
+  }
   const result = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
   return result[0];
 }
 
 export async function getProductById(id: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) {
+    console.error("[DB] getProductById: database unavailable");
+    return undefined;
+  }
   const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
   return result[0];
 }
 
+export async function getProductsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db) {
+    console.error("[DB] getProductsByIds: database unavailable");
+    return [];
+  }
+  if (ids.length === 0) return [];
+  return db.select().from(products).where(inArray(products.id, ids));
+}
+
 export async function getProductsByCategory(categoryLine: string) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    console.error("[DB] getProductsByCategory: database unavailable");
+    return [];
+  }
   return db.select().from(products).where(and(eq(products.active, 1), eq(products.categoryLine, categoryLine))).orderBy(asc(products.displayOrder));
 }
 
 export async function searchProducts(query: string) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    console.error("[DB] searchProducts: database unavailable");
+    return [];
+  }
   const term = `%${query}%`;
   return db.select().from(products).where(
     and(
@@ -247,7 +285,9 @@ export async function getAllOrders() {
 export async function updateOrderStatus(id: number, status: string, mpPaymentId?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const updateData: Record<string, unknown> = { status, updatedAt: new Date() };
+  // Qualquer atualização de status finaliza o processamento em andamento (se houver),
+  // liberando o lock para que uma futura tentativa (retry legítimo) possa adquiri-lo.
+  const updateData: Record<string, unknown> = { status, updatedAt: new Date(), processingSince: null };
   if (mpPaymentId) updateData.mpPaymentId = mpPaymentId;
   await db.update(orders).set(updateData).where(eq(orders.id, id));
 }
@@ -257,4 +297,46 @@ export async function getOrderByPaymentId(paymentId: string) {
   if (!db) return undefined;
   const result = await db.select().from(orders).where(eq(orders.paymentId, paymentId)).limit(1);
   return result[0];
+}
+
+// Tenta adquirir, de forma atômica, o "direito" de iniciar uma cobrança para este pedido.
+//
+// Por que isso resolve a race condition: a cláusula WHERE é avaliada pelo Postgres sob o
+// lock de linha tomado pelo próprio UPDATE. Duas requisições concorrentes que cheguem aqui
+// ao mesmo tempo são serializadas pelo banco — a segunda só executa sua avaliação do WHERE
+// depois que a primeira UPDATE (que já setou processingSince = now()) foi commitada. Como a
+// condição exige `processingSince IS NULL OR processingSince < staleCutoff`, a segunda
+// chamada não casa mais nenhuma linha e o `.returning()` vem vazio. Isso é diferente de um
+// "SELECT status, depois IF status !== approved, depois UPDATE" (que teria uma janela TOCTOU
+// entre o SELECT e o UPDATE) — aqui a decisão e a escrita são a mesma operação atômica.
+//
+// `staleMs` existe para não deixar um pedido permanentemente bloqueado se o processo cair
+// (crash, timeout de rede) no meio de uma tentativa: depois de `staleMs` sem conclusão, o
+// lock é considerado abandonado e uma nova tentativa pode adquiri-lo normalmente.
+export async function tryAcquirePaymentProcessingLock(id: number, staleMs: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const staleCutoff = new Date(Date.now() - staleMs);
+  const result = await db
+    .update(orders)
+    .set({ processingSince: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(orders.id, id),
+        ne(orders.status, "approved"),
+        or(isNull(orders.processingSince), lt(orders.processingSince, staleCutoff))
+      )
+    )
+    .returning({ id: orders.id });
+  return result.length > 0;
+}
+
+// Libera o lock de processamento sem alterar o status do pedido. Usado no `finally` do
+// endpoint de pagamento para garantir que uma falha inesperada (exceção não tratada, erro de
+// rede antes de qualquer updateOrderStatus) não deixe o pedido bloqueado até o timeout de
+// staleMs — o cliente pode tentar novamente imediatamente.
+export async function releasePaymentProcessingLock(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(orders).set({ processingSince: null }).where(eq(orders.id, id));
 }
