@@ -95,15 +95,10 @@ export default function Checkout() {
         customerPhone,
         customerCpf,
         shippingMethod: selectedShipping.method,
-        shippingPrice: finalShipping.toFixed(2),
         shippingCep: cep.replace(/\D/g, ""),
-        subtotal: subtotal.toFixed(2),
-        total: total.toFixed(2),
         items: items.map(i => ({
           productId: i.productId,
-          productName: i.name,
           quantity: i.quantity,
-          price: i.price.toFixed(2),
         })),
       });
       setOrderId(result.orderId);

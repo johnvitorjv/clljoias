@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -13,15 +14,54 @@ import { serveStatic, setupVite } from "./vite";
 function corsMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   const origin = req.headers.origin;
   if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    // Em produção, verificar se origin está na whitelist configurada
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",").map(o => o.trim()) || [];
+    const isWhitelisted = allowedOrigins.length > 0 && allowedOrigins.includes(origin);
+
+    // Em desenvolvimento, permitir qualquer origin; em produção, só permitir se whitelist existir e origin estiver nela
+    const isDev = process.env.NODE_ENV !== "production";
+    if (isWhitelisted || isDev) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    }
   }
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
+}
+
+// Valida a assinatura oficial do webhook do Mercado Pago (HMAC-SHA256).
+// Docs: https://www.mercadopago.com.br/developers/en/docs/checkout-api/webhooks
+// O header x-signature vem no formato "ts=...,v1=..." e o manifest assinado é:
+//   id:{data.id};request-id:{x-request-id};ts:{ts};
+// (letras em data.id devem ser convertidas para minúsculas antes de montar o manifest)
+function isValidMpWebhookSignature(params: {
+  xSignature: string | undefined;
+  xRequestId: string | undefined;
+  dataId: string | undefined;
+  secret: string;
+}): boolean {
+  const { xSignature, xRequestId, dataId, secret } = params;
+  if (!xSignature || !xRequestId || !dataId) return false;
+
+  const parts: Record<string, string> = {};
+  for (const piece of xSignature.split(",")) {
+    const [key, value] = piece.split("=");
+    if (key && value) parts[key.trim()] = value.trim();
+  }
+  const { ts, v1 } = parts;
+  if (!ts || !v1) return false;
+
+  const manifest = `id:${dataId.toLowerCase()};request-id:${xRequestId};ts:${ts};`;
+  const expectedHex = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
+
+  const expected = Buffer.from(expectedHex, "utf8");
+  const received = Buffer.from(v1, "utf8");
+  if (expected.length !== received.length) return false;
+  return crypto.timingSafeEqual(expected, received);
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -69,9 +109,80 @@ async function startServer() {
         return res.status(400).json({ error: "payment_error", message: "Dados do pagamento não recebidos" });
       }
 
-      // Build payment body for Mercado Pago API
+      // CRÍTICO: Validar valor do pagamento buscando pedido no banco
+      // IMPEDIR que atacante manipule o valor no navegador
+      const { getOrderById, tryAcquirePaymentProcessingLock } = await import("../db");
+      const order = await getOrderById(Number(orderId));
+      if (!order) {
+        console.error(`[MP] Pedido #${orderId} não encontrado`);
+        return res.status(400).json({ error: "payment_error", message: "Pedido não encontrado" });
+      }
+
+      // CRÍTICO: Proteção contra pagamento duplicado. Se o pedido já foi aprovado
+      // (por esta rota ou pelo webhook), não reenviar cobrança ao Mercado Pago.
+      // Reutilizar o resultado já registrado evita cobrar o cliente duas vezes em
+      // caso de retry de rede/duplo clique.
+      if (order.status === "approved") {
+        console.warn(`[MP] Pedido #${orderId} já está aprovado - ignorando nova tentativa de cobrança`);
+        return res.json({
+          status: "approved",
+          status_detail: "already_approved",
+          id: order.mpPaymentId || undefined,
+        });
+      }
+
+      // CRÍTICO: Lock atômico contra concorrência. Duas requisições simultâneas para o
+      // mesmo pedido (duplo clique, retry de rede, aba duplicada) não podem ambas passar
+      // deste ponto: a aquisição do lock é um UPDATE condicional no banco (compare-and-set),
+      // não um SELECT seguido de IF em memória - só uma delas recebe `true`. Ver
+      // tryAcquirePaymentProcessingLock em server/db.ts para a explicação completa.
+      // PROCESSING_LOCK_STALE_MS: se uma tentativa anterior travou (crash, timeout) sem
+      // liberar o lock, uma nova tentativa pode adquiri-lo novamente após esse tempo -
+      // evita bloqueio permanente do pedido.
+      //
+      // Este valor PRECISA ser maior que o pior tempo que uma primeira tentativa legítima
+      // pode levar para concluir, senão uma segunda requisição poderia destravar o lock
+      // (achando-o "abandonado") enquanto a primeira ainda está de fato cobrando no MP -
+      // reabrindo a race condition que o lock existe para impedir. A única operação externa
+      // de duração variável neste fluxo é o POST a api.mercadopago.com/v1/payments abaixo,
+      // agora limitado a MP_PAYMENT_REQUEST_TIMEOUT_MS via AbortSignal.timeout. STALE_MS fica
+      // acima desse timeout com margem de segurança para cobrir o tempo de rede/DB restante
+      // (ler pedido, montar payload, gravar status) em torno da chamada.
+      const MP_PAYMENT_REQUEST_TIMEOUT_MS = 20_000;
+      const PROCESSING_LOCK_STALE_MS = 45_000;
+      const acquiredLock = await tryAcquirePaymentProcessingLock(Number(orderId), PROCESSING_LOCK_STALE_MS);
+      if (!acquiredLock) {
+        console.warn(`[MP] Pedido #${orderId} já está em processamento (ou foi aprovado) - requisição concorrente rejeitada`);
+        return res.status(409).json({
+          error: "payment_error",
+          message: "Este pedido já está sendo processado. Aguarde a confirmação antes de tentar novamente.",
+          status: "in_process",
+          status_detail: "concurrent_request_rejected",
+        });
+      }
+
+      // Recalcular total do servidor para validar
+      const serverSubtotal = parseFloat(order.subtotal || "0");
+      const serverShipping = parseFloat(order.shippingPrice || "0");
+      const serverTotal = serverSubtotal + serverShipping;
+
+      // Validar que o valor enviado pelo navegador corresponde ao calculado no servidor
+      const clientAmount = Number(formData.transaction_amount);
+      if (isNaN(clientAmount) || clientAmount <= 0) {
+        console.error(`[MP] Valor inválido: ${formData.transaction_amount}`);
+        return res.status(400).json({ error: "payment_error", message: "Valor do pagamento inválido" });
+      }
+
+      // Diferença máxima tolerável: R$0.01 (para evitar problemas de floating point)
+      const tolerance = 0.02;
+      if (Math.abs(clientAmount - serverTotal) > tolerance) {
+        console.error(`[MP] VALOR MANIPULADO! Cliente: ${clientAmount}, Servidor: ${serverTotal}, Pedido: #${orderId}`);
+        return res.status(400).json({ error: "payment_error", message: "Valor do pagamento não corresponde ao pedido" });
+      }
+
+      // Build payment body for Mercado Pago API - usar valor do SERVIDOR, não do navegador
       const paymentBody: any = {
-        transaction_amount: Number(formData.transaction_amount),
+        transaction_amount: serverTotal, // Sempre usar valor validado do servidor
         token: formData.token,
         description: description || `CLL JOIAS - Pedido #${orderId}`,
         installments: Number(formData.installments) || 1,
@@ -100,9 +211,19 @@ async function startServer() {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
-          "X-Idempotency-Key": `order-${orderId}-${Date.now()}`,
+          // Idempotency key: usar orderId fixo para garantir reenvio da mesma request
+          // Mesmo que MP retorne erro e cliente tente novamente, a mesma key garante retry seguro
+          "X-Idempotency-Key": `cll-order-${orderId}`,
         },
         body: JSON.stringify(paymentBody),
+        // Timeout explícito: sem isso a requisição poderia ficar pendente por muito mais
+        // tempo que PROCESSING_LOCK_STALE_MS (limitada apenas pelo timeout de socket do
+        // runtime), o que faria um segundo request destravar o lock enquanto esta primeira
+        // tentativa ainda está legitimamente em andamento. Em caso de timeout, o fetch lança
+        // AbortError, cai no catch abaixo, que loga, libera o lock (sem alterar o status do
+        // pedido) e responde 500 - a mesma X-Idempotency-Key garante que um retry do cliente
+        // não gere cobrança duplicada mesmo se a primeira chamada tiver de fato chegado ao MP.
+        signal: AbortSignal.timeout(MP_PAYMENT_REQUEST_TIMEOUT_MS),
       });
 
       const mpResult = await mpResponse.json() as any;
@@ -151,27 +272,99 @@ async function startServer() {
       });
     } catch (error: any) {
       console.error("[MP] EXCEÇÃO no processamento:", error);
+      // Liberar o lock em caso de exceção: updateOrderStatus (que já limpa processingSince)
+      // pode não ter sido alcançado. Sem isso, uma falha inesperada aqui deixaria o pedido
+      // bloqueado por até PROCESSING_LOCK_STALE_MS antes de permitir um novo retry.
+      try {
+        const { releasePaymentProcessingLock } = await import("../db");
+        const { orderId: orderIdForCleanup } = req.body;
+        if (orderIdForCleanup) await releasePaymentProcessingLock(Number(orderIdForCleanup));
+      } catch (releaseError) {
+        console.error("[MP] Falha ao liberar lock de processamento após exceção:", releaseError);
+      }
       return res.status(500).json({ error: "payment_error", message: "Falha interna ao processar pagamento", details: error.message });
     }
   });
 
   // Mercado Pago webhook endpoint
+  //
+  // SEGURANÇA: a assinatura x-signature (HMAC-SHA256 sobre o manifest
+  // "id:{data.id};request-id:{x-request-id};ts:{ts};", usando MERCADO_PAGO_WEBHOOK_SECRET)
+  // é validada em isValidMpWebhookSignature() antes de qualquer processamento.
+  // Notificação sem assinatura válida é rejeitada com 401 e o pedido não é consultado
+  // nem alterado. Além disso, o corpo da notificação NUNCA é usado como fonte de verdade
+  // para o status: buscamos o pagamento diretamente na API oficial do Mercado Pago usando
+  // o `data.id` recebido, e é o resultado dessa consulta (não o body do POST) que determina
+  // o novo status do pedido (ver CHECKOUT_SECURITY_REPORT.md).
   app.post("/api/mp-webhook", async (req, res) => {
     try {
+      // SEGURANÇA: validar a assinatura oficial do Mercado Pago ANTES de processar
+      // qualquer coisa. Sem isso, um atacante poderia forjar uma notificação apontando
+      // para um data.id de pagamento real de outra pessoa (ver comentário histórico
+      // removido acima e CHECKOUT_SECURITY_REPORT.md).
+      const webhookSecret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        // Falhar de forma segura: nunca aceitar webhook não autenticado silenciosamente.
+        console.error("[Webhook] ERRO CRÍTICO: MERCADO_PAGO_WEBHOOK_SECRET não configurado");
+        return res.sendStatus(401);
+      }
+
       const { type, data } = req.body;
-      if (type === "payment") {
+      const dataIdForSignature = (req.query["data.id"] as string | undefined) ?? data?.id;
+      const signatureValid = isValidMpWebhookSignature({
+        xSignature: req.headers["x-signature"] as string | undefined,
+        xRequestId: req.headers["x-request-id"] as string | undefined,
+        dataId: dataIdForSignature ? String(dataIdForSignature) : undefined,
+        secret: webhookSecret,
+      });
+      if (!signatureValid) {
+        console.error("[Webhook] Assinatura x-signature inválida - notificação rejeitada");
+        return res.sendStatus(401);
+      }
+
+      if (type === "payment" && data?.id) {
         const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
         if (!accessToken) return res.sendStatus(200);
 
-        const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
-          headers: { "Authorization": `Bearer ${accessToken}` },
-        });
+        // Confirmação server-side: nunca confiar no status enviado no corpo do webhook.
+        // Timeout explícito: o MP exige HTTP 200/201 em até 22s ou considera a notificação
+        // falha e reenvia. Sem limite, esta chamada poderia ficar pendente por bem mais que
+        // isso (só limitada pelo timeout de socket do runtime), fazendo o webhook responder
+        // tarde ou nunca. WEBHOOK_MP_FETCH_TIMEOUT_MS deixa margem para o restante do handler
+        // (consulta ao banco, resposta) dentro da janela de 22s do MP.
+        const WEBHOOK_MP_FETCH_TIMEOUT_MS = 15_000;
+        let paymentRes: Response;
+        try {
+          paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
+            headers: { "Authorization": `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(WEBHOOK_MP_FETCH_TIMEOUT_MS),
+          });
+        } catch (fetchError) {
+          // Timeout (AbortError) ou falha de rede: não alterar status do pedido. Responder
+          // 200 seria interpretado pelo MP como "processado com sucesso" e a notificação não
+          // seria reenviada - mas a confirmação real (consulta à API do MP) não aconteceu.
+          // Responder com erro permite que o MP reenvie o webhook depois, quando a API
+          // estiver disponível novamente.
+          console.error(`[Webhook] Timeout/falha de rede ao confirmar pagamento ${data.id} na API do MP:`, fetchError);
+          return res.sendStatus(502);
+        }
+        if (!paymentRes.ok) {
+          console.error(`[Webhook] Falha ao confirmar pagamento ${data.id} na API do MP: HTTP ${paymentRes.status}`);
+          return res.sendStatus(200);
+        }
         const payment = await paymentRes.json() as any;
 
         if (payment.external_reference) {
           const { getOrderByPaymentId, updateOrderStatus } = await import("../db");
           const order = await getOrderByPaymentId(payment.external_reference);
           if (order) {
+            // Idempotência: não regredir um pedido já aprovado por causa de uma
+            // notificação atrasada/duplicada (ex.: webhook de "pending" chegando
+            // depois de o process-payment já ter confirmado "approved").
+            if (order.status === "approved" && payment.status !== "approved") {
+              console.warn(`[Webhook] Ignorando notificação ${payment.status} para pedido #${order.id} já aprovado`);
+              return res.sendStatus(200);
+            }
             const statusMap: Record<string, string> = {
               approved: "approved",
               pending: "pending",

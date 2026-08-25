@@ -67,6 +67,11 @@ export const orders = pgTable("orders", {
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   paymentId: varchar("paymentId", { length: 255 }),
   mpPaymentId: varchar("mpPaymentId", { length: 255 }),
+  // Lock de processamento: marca o instante em que uma requisição de pagamento
+  // começou a processar este pedido. Usado como compare-and-set atômico (UPDATE
+  // condicional no banco) para impedir que duas requisições concorrentes iniciem
+  // cobrança duplicada. NULL = nenhum processamento em andamento.
+  processingSince: timestamp("processingSince"),
   shippingMethod: varchar("shippingMethod", { length: 100 }),
   shippingPrice: decimal("shippingPrice", { precision: 10, scale: 2 }).default("0"),
   shippingCep: varchar("shippingCep", { length: 10 }),
